@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+import json
 import asyncpg
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -25,6 +26,11 @@ class Settings(BaseSettings):
 settings = Settings()
 
 
+async def init_connection(connection: asyncpg.Connection) -> None:
+    await connection.set_type_codec("json", encoder=json.dumps, decoder=json.loads, schema="pg_catalog")
+    await connection.set_type_codec("jsonb", encoder=json.dumps, decoder=json.loads, schema="pg_catalog")
+
+
 @asynccontextmanager
 async def lifespan(application: FastAPI):
     application.state.db = None
@@ -34,6 +40,7 @@ async def lifespan(application: FastAPI):
             min_size=1,
             max_size=10,
             command_timeout=30,
+            init=init_connection,
         )
     yield
     if application.state.db is not None:
