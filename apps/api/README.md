@@ -1,39 +1,32 @@
 # Life Easy API
 
-FastAPI service intended for Render. Python 3.12+.
+FastAPI API and background worker. Python 3.12+.
 
 ## Local setup
+    python -m venv .venv
+    pip install -r requirements.txt
+    cp .env.example .env
+    python -m app.migrate
+    uvicorn app.main:app --reload
 
-```bash
-python -m venv .venv
-# Activate the virtual environment, then:
-pip install -r requirements.txt
-cp .env.example .env
-```
+Run the background worker in a second process:
+    python -m app.worker
 
-Set `DATABASE_URL` and a cryptographically random `JWT_SECRET` of at least 32 characters. Create a PostgreSQL database, then apply migrations:
+## Routes
+- /api/v1/auth: register, login, logout, current account. Browser auth uses HttpOnly cookies and CSRF checks.
+- /api/v1/verification: email OTP (Resend) and phone OTP (Twilio Verify).
+- /api/v1/profile: user-scoped career profile.
+- /api/v1/resumes: private PDF/DOCX upload, extraction, heuristic ATS analysis and short-lived download URLs.
+- /api/v1/jobs: search, save and ingestion source health.
+- /api/v1/applications: user-scoped application pipeline.
+- /api/v1/assistant/chat: career assistant with profile, resume and memory context.
+- /api/v1/memories: user-controlled memory records.
+- /api/v1/integrations: Gmail OAuth and connected-account listing.
+- /api/v1/approvals: exact-content preview, confirmation and queueing.
+- /api/v1/webhooks/whatsapp: Meta verification, signed inbound messages, user linking and career assistant replies.
 
-```bash
-python -m app.migrate
-uvicorn app.main:app --reload
-```
+## Secrets
+See .env.example and ../../docs/provider-setup.md. Never commit secrets or ask users to paste provider credentials into chat.
 
-## Implemented API foundation
-
-- `GET /health` — service health.
-- `POST /api/v1/auth/register` — email/password registration.
-- `POST /api/v1/auth/login` — login and short-lived bearer token.
-- `GET /api/v1/auth/me` — current authenticated user.
-- `GET/PUT /api/v1/profile` — user-scoped career profile.
-- `POST /api/v1/jobs/search` — search jobs already indexed in PostgreSQL and compute explainable baseline matching.
-- `POST /api/v1/jobs/{id}/save`, `GET /api/v1/jobs/saved` — user-scoped saved jobs.
-- `POST/GET /api/v1/approvals` — create and list exact-message approval records.
-- `POST /api/v1/approvals/{id}/confirm` — approve or cancel the exact content hash.
-
-All authenticated endpoints use bearer JWTs and scope records to the authenticated user. The API does not send approved messages yet: the execution worker and Gmail/LinkedIn/WhatsApp send adapters must be implemented before external actions can run.
-
-## Not yet production-ready
-
-Email/phone OTP verification, OAuth login, password reset, secure HttpOnly cookie sessions, resume object storage, live job-source ingestion adapters, AI orchestration, WhatsApp sender binding and auto-replies, Gmail OAuth, LinkedIn authorized actions, background workers, rate limiting, observability, and end-to-end tests remain to be completed.
-
-Never commit `.env` or provider credentials.
+## Important behavior
+Approval confirmation only queues an external action. The worker re-computes the payload hash before sending. Gmail and WhatsApp send adapters are implemented; unsupported action types fail closed. Resume files are private and all resume queries are scoped by authenticated user.
