@@ -21,7 +21,8 @@ async def send_gmail(pool,user_id,payload,approval_id):
         response=await client.post("https://gmail.googleapis.com/gmail/v1/users/me/messages/send",headers={"Authorization":f"Bearer {token}"},json={"raw":raw})
     if response.status_code>=500: raise UncertainDelivery(f"Gmail returned HTTP {response.status_code}; delivery status is uncertain")
     if response.is_error: raise RuntimeError(f"Gmail rejected the send with HTTP {response.status_code}")
-    return str(response.json().get("id",""))
+    try: return str(response.json().get("id",""))
+    except ValueError as exc: raise UncertainDelivery("Gmail accepted the request but returned an unreadable response; delivery status is uncertain") from exc
 async def _record_failure(pool,job,status,error):
     async with pool.acquire() as conn:
         await conn.execute("UPDATE external_action_jobs SET status=$1,last_error=$2,updated_at=now() WHERE id=$3",status,str(error)[:500],job["id"])
@@ -41,6 +42,9 @@ async def process_one(pool):
         elif job["action_type"]=="whatsapp.message":
             try: result=await send_text_message(payload["recipient"],payload["message"])
             except httpx.TransportError as exc: raise UncertainDelivery("WhatsApp request transport failed; delivery status is uncertain") from exc
+            except httpx.HTTPStatusError as exc:
+                if exc.response is not None and exc.response.status_code>=500: raise UncertainDelivery("WhatsApp returned a server error; delivery status is uncertain") from exc
+                raise
             provider_id=str((result.get("messages") or [{}])[0].get("id",""))
         else: raise RuntimeError("This action type has no authorized provider adapter")
     except UncertainDelivery as exc:

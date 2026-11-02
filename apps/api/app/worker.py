@@ -11,6 +11,9 @@ async def run():
     loop=asyncio.get_running_loop()
     try:
         while True:
+            if loop.time()>=next_recovery:
+                await pool.execute("UPDATE external_action_jobs SET status='uncertain',last_error='Worker stopped while sending; check provider Sent/Message history before retrying',updated_at=now() WHERE status='processing' AND updated_at<now()-interval '5 minutes'")
+                next_recovery=loop.time()+60
             if loop.time()>=next_ingest:
                 try: print({"job_ingestion":await ingest_configured_boards(pool)})
                 except Exception as exc: print({"job_ingestion_error":str(exc)[:300]})
