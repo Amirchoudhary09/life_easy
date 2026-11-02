@@ -51,8 +51,13 @@ async def fetch_remoteok(client):
     return [normalize_remoteok(x) for x in jobs]
 
 async def ingest_configured_boards(pool:asyncpg.Pool):
-    greenhouse=[x.strip() for x in os.getenv("GREENHOUSE_BOARD_TOKENS","").split(",") if x.strip()]
-    lever=[x.strip() for x in os.getenv("LEVER_SITE_NAMES","").split(",") if x.strip()]
+    greenhouse={x.strip() for x in os.getenv("GREENHOUSE_BOARD_TOKENS","").split(",") if x.strip()}
+    lever={x.strip() for x in os.getenv("LEVER_SITE_NAMES","").split(",") if x.strip()}
+    configured=await pool.fetch("SELECT provider,board_key FROM admin_job_sources WHERE active=TRUE")
+    for source in configured:
+        if source["provider"]=="greenhouse": greenhouse.add(source["board_key"])
+        elif source["provider"]=="lever": lever.add(source["board_key"])
+    greenhouse=sorted(greenhouse); lever=sorted(lever)
     sources=[("jobicy","public-apac"),("remoteok","public")]
     sources += [("greenhouse",x) for x in greenhouse]+[("lever",x) for x in lever]
     total=inserted=updated=0

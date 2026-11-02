@@ -45,6 +45,12 @@ Set OPENAI_API_KEY and optionally OPENAI_BASE_URL and OPENAI_MODEL. Model usage 
 ## Job ingestion
 Jobicy (APAC engineering feed) and Remote OK public JSON feeds are ingested without credentials every six hours. Keep each listing credited with its source and link users to the source posting. Jobicy limits public API polling to no more than once per hour; the default six-hour cadence respects this. Set GREENHOUSE_BOARD_TOKENS and LEVER_SITE_NAMES to add public employer boards. Do not scrape LinkedIn or bypass access controls.
 
+## Admin and developer access
+- The admin console is available at /admin. No admin password or developer credential is committed or pre-created.
+- To authorize the first administrator after deployment, set ADMIN_EMAILS to a comma-separated allowlist of account email addresses in the API environment, then create those accounts through normal signup and verify them. Those allowlisted accounts receive the admin role at login.
+- Admins can assign admin/developer/user roles, suspend accounts, manage public Greenhouse/Lever board identifiers and feature flags. Developers can view operational health, job ingestion and audit events but cannot manage user roles.
+- Secrets are never displayed in the developer console; it only shows configured/not-configured status. Keep provider secrets in the hosting secret manager.
+
 ## Deployment order
 1. Create managed PostgreSQL and private object storage.
 2. Configure API and worker environment variables in Render.

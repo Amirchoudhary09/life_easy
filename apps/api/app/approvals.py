@@ -63,8 +63,10 @@ async def create_approval(body: ApprovalBody, user=Depends(current_user), db: as
 async def list_approvals(user=Depends(current_user), db: asyncpg.Pool = Depends(get_db)):
     rows = await db.fetch(
         """
-        SELECT id, action_type, payload, content_hash, status, created_at, approved_at, executed_at
-        FROM action_approvals WHERE user_id = $1 ORDER BY created_at DESC LIMIT 100
+        SELECT a.id,a.action_type,a.payload,a.content_hash,a.status,a.created_at,a.approved_at,a.executed_at,
+          q.status AS delivery_status,q.last_error,q.provider_message_id
+        FROM action_approvals a LEFT JOIN external_action_jobs q ON q.approval_id=a.id
+        WHERE a.user_id=$1 ORDER BY a.created_at DESC LIMIT 100
         """,
         user["id"],
     )
@@ -117,6 +119,12 @@ async def confirm_approval(
                 """,
                 status, approval_id, user["id"],
             )
+            if body.confirm:
+                await conn.execute(
+                    """INSERT INTO external_action_jobs(approval_id,user_id,status)
+                    VALUES($1,$2,'pending') ON CONFLICT(approval_id) DO NOTHING""",
+                    approval_id,user["id"],
+                )
             await conn.execute(
                 """
                 INSERT INTO audit_events(user_id, event_type, resource_id, details)
@@ -125,5 +133,4 @@ async def confirm_approval(
                 user["id"], "approval." + status, approval_id,
                 {"content_hash": row["content_hash"], "action_type": row["action_type"]},
             )
-    # An approved record is still not sent until a separate execution worker exists.
-    return {"approval_id": str(approval_id), "status": status, "execution": "not_sent_worker_pending"}
+    return {"approval_id": str(approval_id), "status": status, "execution": "queued" if body.confirm else "not_sent"}

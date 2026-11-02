@@ -16,6 +16,7 @@ from app.applications import router as applications_router
 from app.memories import router as memories_router
 from app.assistant import router as assistant_router
 from app.oauth import router as integrations_router
+from app.admin import router as admin_router
 class Settings(BaseSettings):
     model_config=SettingsConfigDict(env_file=".env",extra="ignore")
     app_name:str="Life Easy API"
@@ -44,7 +45,7 @@ async def csrf_guard(request:Request,call_next):
         if not cookie or not header or not hmac.compare_digest(cookie,header):
             return JSONResponse(status_code=403,content={"detail":"CSRF validation failed"})
     return await call_next(request)
-for router in (auth_router,profile_router,jobs_router,approvals_router,whatsapp_router,verification_router,resumes_router,applications_router,memories_router,assistant_router,integrations_router):
+for router in (auth_router,profile_router,jobs_router,approvals_router,whatsapp_router,verification_router,resumes_router,applications_router,memories_router,assistant_router,integrations_router,admin_router):
     app.include_router(router)
 @app.get("/health")
 async def health():

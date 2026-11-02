@@ -7,7 +7,7 @@ async def run():
     dsn=os.getenv("DATABASE_URL","")
     if not dsn: raise RuntimeError("DATABASE_URL is required")
     pool=await asyncpg.create_pool(dsn,min_size=1,max_size=5,init=init_connection)
-    interval=int(os.getenv("JOB_INGESTION_INTERVAL_SECONDS","21600")); next_ingest=0
+    interval=max(3600,int(os.getenv("JOB_INGESTION_INTERVAL_SECONDS","21600"))); next_ingest=0; next_recovery=0
     loop=asyncio.get_running_loop()
     try:
         while True:
