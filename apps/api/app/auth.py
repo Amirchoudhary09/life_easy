@@ -14,7 +14,7 @@ class RegisterBody(BaseModel):
     email:EmailStr
     password:str=Field(min_length=12,max_length=128)
     display_name:str=Field(min_length=1,max_length=100)
-    phone_e164:str=Field(pattern=r"^\\+[1-9]\\d{7,14}$")
+    phone_e164:str=Field(pattern=r"^\+[1-9]\d{7,14}$")
 class LoginBody(BaseModel):
     email:EmailStr
     password:str=Field(min_length=1,max_length=128)
