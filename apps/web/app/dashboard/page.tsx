@@ -52,8 +52,8 @@ export default function DashboardPage(){
  async function load(){
   const me=await api("/api/v1/auth/me");setUser(me.user);
   const results=await Promise.allSettled([
-   api("/api/v1/profile"),api("/api/v1/applications"),api("/api/v1/resumes"),
-   api("/api/v1/integrations"),api("/api/v1/approvals"),api("/api/v1/jobs/sources"),api("/api/v1/webhooks/whatsapp/status"),api("/api/v1/webhooks/whatsapp/status")
+   api("/api/v1/profile"),api("/api/v1/applications"),api("/api/v1/resumes"),api("/api/v1/memories"),
+   api("/api/v1/integrations"),api("/api/v1/approvals"),api("/api/v1/jobs/sources"),api("/api/v1/webhooks/whatsapp/status")
   ]);
   const [p,a,r,m,i,ap,s,w]=results;
   if(p.status==="fulfilled"&&p.value.profile)setProfile(p.value.profile);
