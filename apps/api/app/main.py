@@ -1,82 +1,53 @@
 from __future__ import annotations
 from contextlib import asynccontextmanager
-from typing import Any
-from fastapi import FastAPI, Header, HTTPException
+import json,asyncpg,hmac
+from fastapi import FastAPI,Request
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
-from pydantic_settings import BaseSettings, SettingsConfigDict
-
+from fastapi.responses import JSONResponse
+from pydantic_settings import BaseSettings,SettingsConfigDict
+from app.approvals import router as approvals_router
+from app.auth import router as auth_router
+from app.profile import router as profile_router
+from app.jobs import router as jobs_router
 from app.whatsapp import router as whatsapp_router
-
+from app.verification import router as verification_router
+from app.resumes import router as resumes_router
+from app.applications import router as applications_router
+from app.memories import router as memories_router
+from app.assistant import router as assistant_router
+from app.oauth import router as integrations_router
+from app.admin import router as admin_router
+from app.features_api import router as features_router
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
-    app_name: str = "Life Easy API"
-    environment: str = "development"
-    frontend_origin: str = "http://localhost:3000"
-    app_api_key: str = ""
-    database_url: str = ""
-    redis_url: str = ""
-
-settings = Settings()
-
+    model_config=SettingsConfigDict(env_file=".env",extra="ignore")
+    app_name:str="Life Easy API"
+    environment:str="development"
+    frontend_origin:str="http://localhost:3000"
+    database_url:str=""
+    redis_url:str=""
+settings=Settings()
+async def init_connection(connection:asyncpg.Connection):
+    await connection.set_type_codec("json",encoder=json.dumps,decoder=json.loads,schema="pg_catalog")
+    await connection.set_type_codec("jsonb",encoder=json.dumps,decoder=json.loads,schema="pg_catalog")
 @asynccontextmanager
-async def lifespan(_: FastAPI):
+async def lifespan(application:FastAPI):
+    application.state.db=None
+    if settings.database_url:
+        application.state.db=await asyncpg.create_pool(dsn=settings.database_url,min_size=1,max_size=10,command_timeout=30,init=init_connection)
     yield
-
-app = FastAPI(title=settings.app_name, version="0.2.0", lifespan=lifespan)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[settings.frontend_origin],
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
-)
-app.include_router(whatsapp_router)
-
-class JobSearchRequest(BaseModel):
-    query: str = Field(min_length=2, max_length=300)
-    locations: list[str] = Field(default_factory=lambda: ["India"])
-    experience: str = "0-2 years"
-    employment_types: list[str] = Field(default_factory=lambda: ["full-time", "internship"])
-    limit: int = Field(default=20, ge=1, le=50)
-
-class ApprovalRequest(BaseModel):
-    action: str = Field(min_length=3, max_length=80)
-    payload: dict[str, Any]
-
-def require_api_key(authorization: str | None) -> None:
-    if not settings.app_api_key:
-        if settings.environment == "production":
-            raise HTTPException(status_code=503, detail="API authentication is not configured")
-        return
-    if authorization != f"Bearer {settings.app_api_key}":
-        raise HTTPException(status_code=401, detail="Invalid API key")
-
+    if application.state.db is not None: await application.state.db.close()
+app=FastAPI(title=settings.app_name,version="0.5.0",lifespan=lifespan)
+app.add_middleware(CORSMiddleware,allow_origins=[settings.frontend_origin],allow_credentials=True,allow_methods=["GET","POST","PUT","PATCH","DELETE","OPTIONS"],allow_headers=["Authorization","Content-Type","X-Request-ID","X-CSRF-Token"])
+@app.middleware("http")
+async def csrf_guard(request:Request,call_next):
+    if request.method in {"POST","PUT","PATCH","DELETE"} and request.url.path not in {"/api/v1/auth/login","/api/v1/auth/register","/api/v1/auth/phone/send","/api/v1/auth/phone/verify"} and request.cookies.get("life_easy_access"):
+        cookie=request.cookies.get("life_easy_csrf","")
+        header=request.headers.get("x-csrf-token","")
+        if not cookie or not header or not hmac.compare_digest(cookie,header):
+            return JSONResponse(status_code=403,content={"detail":"CSRF validation failed"})
+    return await call_next(request)
+for router in (auth_router,profile_router,jobs_router,approvals_router,whatsapp_router,verification_router,resumes_router,applications_router,memories_router,assistant_router,integrations_router,admin_router,features_router):
+    app.include_router(router)
 @app.get("/health")
-async def health() -> dict[str, str]:
-    return {"status": "ok", "service": "life-easy-api"}
-
-@app.get("/api/v1/me")
-async def me(authorization: str | None = Header(default=None)) -> dict[str, str]:
-    require_api_key(authorization)
-    return {"name": "Life Easy user", "profile_status": "not_configured"}
-
-@app.post("/api/v1/jobs/search")
-async def search_jobs(request: JobSearchRequest, authorization: str | None = Header(default=None)) -> dict[str, Any]:
-    require_api_key(authorization)
-    return {
-        "status": "source_adapters_not_configured",
-        "request": request.model_dump(),
-        "jobs": [],
-        "message": "Configure permitted job-source adapters to enable discovery.",
-    }
-
-@app.post("/api/v1/approvals")
-async def create_approval(request: ApprovalRequest, authorization: str | None = Header(default=None)) -> dict[str, Any]:
-    require_api_key(authorization)
-    return {
-        "status": "pending_implementation",
-        "action": request.action,
-        "requires_confirmation": True,
-        "message": "Approval persistence and execution worker are not configured yet.",
-    }
+async def health():
+    return {"status":"ok","service":"life-easy-api","database_configured":bool(settings.database_url)}

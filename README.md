@@ -1,78 +1,62 @@
-# Life Easy — Career-first Personal AI Assistant
+# Life Easy
 
-Life Easy is a multi-user, cloud-hosted AI assistant with **job hunting as its primary product** and career-related productivity as supporting capabilities.
+Life Easy is a multi-user, career-first AI assistant. It combines job discovery, resume intelligence, application tracking, a career copilot, WhatsApp conversations and approved career communications.
 
-## Product direction
+## Product modules
+- Email/password registration (with mobile number) and login plus phone OTP login for verified numbers. Browser sessions use HttpOnly cookies with CSRF protection.
+- Email OTP (Resend) and phone OTP (Twilio Verify) account verification.
+- User-isolated profiles, resumes, saved jobs, applications, conversations and memories.
+- Private PDF/DOCX resume storage on S3-compatible storage, text extraction, skill detection and transparent heuristic ATS-style analysis.
+- Job ingestion from public Jobicy and Remote OK feeds plus configurable Greenhouse and Lever company boards; normalized jobs are matched against each user's skills and preferences.
+- Career copilot powered by an OpenAI-compatible chat completion endpoint, with user-specific profile/resume/memory context.
+- WhatsApp Business webhook signature validation, one-time account linking, inbound routing and assistant replies.
+- Gmail OAuth using each user's own Google account. OAuth tokens are encrypted at rest.
+- Exact-message approval previews. Approval binds destination, channel and body to a SHA-256 content hash. A separate worker re-checks the hash before sending Gmail or WhatsApp messages.
+- Role-based admin and developer control plane at /admin: user and role management, account suspension, public job-board management, feature flags, indexed job inspection, service health, worker heartbeat and audit trail. Admin credentials are not created or committed; first-admin access uses a later ADMIN_EMAILS allowlist in hosting settings.
 
-**Primary: AI job hunting**
-- Discover relevant jobs from permitted public job boards, APIs, and company career pages.
-- Match openings against each user's resume, skills, experience, location, and salary preferences.
-- Explain match quality and preserve job source links and retrieval timestamps.
-- Research publicly listed recruiter contacts with source evidence; never guess private contact details.
-- Draft tailored applications and recruiter outreach.
-- Track saved roles, applications, interviews, follow-ups, and outcomes.
+## Architecture
+- Web: Next.js 16, deployed on Vercel.
+- API: FastAPI + asyncpg, deployed as a Render web service.
+- Worker: separate Render background worker for scheduled job ingestion and approved message delivery.
+- Database: managed PostgreSQL. Migrations live in apps/api/migrations.
+- Resume storage: private S3-compatible bucket.
+- Queue: PostgreSQL-backed action queue for the first release.
 
-**Supporting: career-focused assistant**
-- Draft and send career-related emails through each user's own connected email account, only after explicit approval.
-- Prepare LinkedIn posts, recruiter messages, connection notes, and profile copy.
-- Publish or perform LinkedIn actions only through supported, authorized integrations and user approval; never scrape pages or automate session-cookie/browser access.
-- Help with resumes, cover letters, interview preparation, career research, and reminders.
+## Local setup
+1. Create a PostgreSQL database with pgvector extension available.
+2. Copy apps/api/.env.example to apps/api/.env. Set DATABASE_URL, JWT_SECRET (32+ random bytes) and OTP_PEPPER (a separate 32+ random bytes).
+3. Install and migrate the API:
+   
+       cd apps/api
+       pip install -r requirements.txt
+       python -m app.migrate
+       uvicorn app.main:app --reload
 
-Life Easy is not intended to become a generic do-everything personal assistant in its first release. Product design, roadmap, and onboarding should prioritize the job-search journey.
+4. Configure the web app:
+   
+       cd apps/web
+       cp .env.example .env.local
+       # Next.js rewrites /api to localhost:8000 by default.
+       npm install
+       npm run dev
 
-## Core user experience
+5. Run the worker in another terminal from apps/api:
+   
+       python -m app.worker
 
-Users can communicate through the Life Easy web dashboard and supported messaging channels. Every user has an isolated account, profile, resume, connected accounts, conversation history, and memory. The assistant should infer whether a request is job-search work or a supporting career task, then route it to the appropriate capability.
+## Provider configuration
+See docs/provider-setup.md for email OTP, SMS OTP, Gmail OAuth, WhatsApp Business, private storage and AI setup. Credentials belong in hosting secret stores, never in Git or chat.
 
-External side effects — sending email, publishing LinkedIn content, submitting applications, or changing account data — require a clear user confirmation. Research, search, matching, drafting, and summarization can run without approval.
+## Current honest limitations
+- Greenhouse and Lever ingestion requires configured public company board tokens/site names. Jobicy and Remote OK feeds work without credentials and are credited with source links. It does not scrape LinkedIn or private job boards.
+- ATS analysis is a transparent heuristic, not a proprietary vendor ATS score.
+- Gmail send and WhatsApp replies require provider setup and user authorization. LinkedIn outbound actions are not implemented; LinkedIn assistance is limited to drafting/research.
+- Provider-side OAuth revocation, password reset, advanced abuse/rate limiting, production observability/alerting, backup/restore drills and external penetration testing remain before public production launch.
+- Configure HTTPS frontend/API origins for credentialed CORS. Prefer custom app/api domains under the same registrable domain for reliable browser cookie behavior.
 
-## Deployment target
+## Development checks
+- API tests: cd apps/api && pytest -q
+- API syntax: python -m compileall -q apps/api/app
+- Web: cd apps/web && npm install && npm run build
 
-- **Web:** Next.js on Vercel.
-- **API and workers:** FastAPI on Render.
-- **Database:** Managed PostgreSQL with pgvector.
-- **Queue/cache:** Redis-compatible managed service.
-- **Files:** Private object storage for resumes and documents.
-- **Messaging:** WhatsApp Business Platform (Life Easy-owned business number) and/or Telegram Bot API, subject to provider onboarding and policy.
-- **Email:** Per-user OAuth connection; send from that user's mailbox after approval.
-- **LinkedIn:** Supported APIs and explicitly authorized integration paths only.
-
-Hosting free tiers have limits and may sleep, expire, or prohibit commercial use. Do not rely on ephemeral/free databases for important user data.
-
-## Repository layout
-
-```text
-apps/
-  api/       FastAPI service
-  web/       Next.js dashboard
-database/    PostgreSQL schema
-infra/       Deployment configuration
-docs/        Architecture, security, and provider setup
-.github/     CI workflow
-```
-
-## Current implementation status
-
-This repository is a foundation, not a completed SaaS. The dashboard is a starter landing/workspace UI; the API has scaffolding endpoints and a WhatsApp webhook verification/signature-validation scaffold. The webhook currently acknowledges verified events but does not yet identify users, queue work, or generate replies.
-
-Not yet production-ready: authentication, multi-tenant authorization, persistent conversation memory, real job-source adapters, Gmail OAuth, LinkedIn integration, background workers, approvals persistence/execution, end-to-end tests, and deployment. Provider credentials and business verification must be configured by the owner. Never commit secrets.
-
-## Security principles
-
-- Per-user data isolation and authorization on every API route and database query.
-- Encrypt OAuth refresh tokens at rest using managed keys.
-- Keep secrets in hosting secret stores, never in Git or chat.
-- Require explicit confirmation before external actions.
-- Keep an audit trail for approvals and executed actions.
-- Use rate limits, retries, idempotency, and provider quotas.
-- Keep resumes, recruiter research, and conversations out of public logs.
-- Provide account disconnect, data export, and deletion workflows.
-
-## License
-
-Proprietary personal project. Add a license only when the owner decides how the code may be reused.
-
-
-## Mandatory send approval
-
-Life Easy must show the exact destination, channel, complete message, and attachments and obtain the user's explicit final approval before sending any message to another person or publishing to an external audience. This applies separately to every email, LinkedIn message/post, recruiter outreach, and other outbound communication. Editing the recipient or content invalidates the approval. Normal assistant replies to the user in their active chat do not need an extra confirmation.
+Do not deploy with placeholder secrets. Run migrations against the production database before starting the API and worker.
