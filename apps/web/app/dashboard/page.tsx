@@ -23,7 +23,7 @@ export default function DashboardPage(){
  const [chat,setChat]=useState<any[]>([{role:"assistant",content:"Hi! I’m Life Easy. Ask me about your resume, jobs, interviews or career plans."}]);
  const [chatText,setChatText]=useState("");
  const [conversationId,setConversationId]=useState("");
- const [busy,setBusy]=useState(false);
+ const [busy,setBusy]=useState(true);
  const [integrations,setIntegrations]=useState<any[]>([]);
  const [linkCode,setLinkCode]=useState("");
  const [otp,setOtp]=useState("");
@@ -47,8 +47,8 @@ export default function DashboardPage(){
  async function load(){
   const me=await api("/api/v1/auth/me");setUser(me.user);
   const results=await Promise.allSettled([
-   api("/api/v1/profile"),api("/api/v1/applications",{},t),api("/api/v1/resumes",{},t),
-   api("/api/v1/integrations",{},t),api("/api/v1/approvals",{},t),api("/api/v1/jobs/sources",{},t)
+   api("/api/v1/profile"),api("/api/v1/applications"),api("/api/v1/resumes"),
+   api("/api/v1/integrations"),api("/api/v1/approvals"),api("/api/v1/jobs/sources")
   ]);
   const [p,a,r,i,ap,s]=results;
   if(p.status==="fulfilled"&&p.value.profile)setProfile(p.value.profile);

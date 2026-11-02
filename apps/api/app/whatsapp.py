@@ -52,7 +52,7 @@ async def send_text_message(recipient,text):
     if response.is_error: raise RuntimeError(f"WhatsApp send failed with HTTP {response.status_code}")
     return response.json()
 @router.post("")
-async def receive_webhook(request:Request,db:asyncpg.Pool=Depends(__import__("app.db",fromlist=["get_db"]).get_db)):
+async def receive_webhook(request:Request,db:asyncpg.Pool=Depends(get_db)):
     raw=await request.body()
     if not valid_signature(raw,request.headers.get("x-hub-signature-256")): raise HTTPException(status_code=401,detail="Invalid webhook signature")
     try: payload=await request.json()
