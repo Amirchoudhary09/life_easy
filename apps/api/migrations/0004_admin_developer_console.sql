@@ -31,3 +31,12 @@ CREATE TABLE IF NOT EXISTS worker_heartbeats(
  last_seen TIMESTAMPTZ NOT NULL DEFAULT now(),
  metadata JSONB NOT NULL DEFAULT '{}'::jsonb
 );
+
+INSERT INTO feature_flags(flag_key,enabled,description) VALUES
+ ('job_search',TRUE,'Enable user-facing job discovery'),
+ ('ai_assistant',TRUE,'Enable the career copilot'),
+ ('resume_processing',TRUE,'Enable private resume upload and analysis'),
+ ('gmail_integration',TRUE,'Allow users to connect Gmail'),
+ ('whatsapp_assistant',TRUE,'Enable linked WhatsApp career assistant replies'),
+ ('external_delivery',TRUE,'Allow approved external email and WhatsApp delivery')
+ON CONFLICT(flag_key) DO NOTHING;
