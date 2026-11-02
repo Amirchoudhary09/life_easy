@@ -55,7 +55,7 @@ async def register(body:RegisterBody,response:Response,db:asyncpg.Pool=Depends(g
 @router.post("/login")
 async def login(body:LoginBody,response:Response,db:asyncpg.Pool=Depends(get_db)):
     jwt_secret()
-    row=await db.fetchrow("SELECT id,email,display_name,email_verified,password_hash FROM app_users WHERE email=$1",str(body.email).lower().strip())
+    row=await db.fetchrow("SELECT id,email,display_name,email_verified,password_hash,phone_e164 FROM app_users WHERE email=$1",str(body.email).lower().strip())
     if row is None or not row["password_hash"] or not hasher.verify(body.password,row["password_hash"]): raise HTTPException(status_code=401,detail="Invalid email or password")
     csrf=set_session(response,row["id"])
     return {"user":{"id":str(row["id"]),"email":row["email"],"display_name":row["display_name"],"email_verified":row["email_verified"],"phone_e164":row["phone_e164"]},"csrf_token":csrf,"token_type":"cookie","expires_in":43200}
