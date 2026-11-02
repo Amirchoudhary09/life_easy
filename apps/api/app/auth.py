@@ -65,7 +65,7 @@ async def phone_login_send(body:PhoneLoginSend,db:asyncpg.Pool=Depends(get_db)):
     recent=await db.fetchval("SELECT count(*) FROM otp_challenges WHERE target=$1 AND purpose='login' AND created_at>now()-interval '1 hour'",body.phone_e164)
     if recent>=3: raise HTTPException(status_code=429,detail="Too many OTP requests. Try again later.")
     user=await db.fetchrow("SELECT id FROM app_users WHERE phone_e164=$1 AND phone_verified=TRUE",body.phone_e164)
-    if user is None: return {"status":"if_account_exists_code_sent","message":"If this number belongs to a verified Life Easy account, a code has been sent."}
+    if user is None: return {"status":"sent","message":"If this number belongs to a verified Life Easy account, a code has been sent."}
     async with httpx.AsyncClient(timeout=20) as client:
         result=await client.post(f"https://verify.twilio.com/v2/Services/{service}/Verifications",auth=(sid,token),data={"To":body.phone_e164,"Channel":"sms"})
     if result.is_error: raise HTTPException(status_code=502,detail="Could not send phone OTP")

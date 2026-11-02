@@ -5,19 +5,27 @@ import asyncpg,httpx
 from app.approvals import digest
 from app.oauth import gmail_access_token
 from app.whatsapp import send_text_message
+class UncertainDelivery(Exception): pass
 async def init_connection(c):
     import json
     await c.set_type_codec("json",encoder=json.dumps,decoder=json.loads,schema="pg_catalog")
     await c.set_type_codec("jsonb",encoder=json.dumps,decoder=json.loads,schema="pg_catalog")
-async def send_gmail(pool,user_id,payload):
+async def send_gmail(pool,user_id,payload,approval_id):
     if payload.get("attachments"): raise RuntimeError("Email attachments are not enabled yet; create a new approval without attachments")
     token=await gmail_access_token(pool,user_id)
-    msg=EmailMessage(); msg["To"]=payload["recipient"]; msg["Subject"]=payload.get("subject") or "(no subject)"; msg.set_content(payload["message"])
+    msg=EmailMessage(); msg["To"]=payload["recipient"]; msg["Subject"]=payload.get("subject") or "(no subject)"
+    msg["Message-ID"]=f"<life-easy-{approval_id}@life-easy.invalid>"
+    msg.set_content(payload["message"])
     raw=base64.urlsafe_b64encode(msg.as_bytes()).decode().rstrip("=")
     async with httpx.AsyncClient(timeout=30) as client:
         response=await client.post("https://gmail.googleapis.com/gmail/v1/users/me/messages/send",headers={"Authorization":f"Bearer {token}"},json={"raw":raw})
-    if response.is_error: raise RuntimeError(f"Gmail send failed with HTTP {response.status_code}")
+    if response.status_code>=500: raise UncertainDelivery(f"Gmail returned HTTP {response.status_code}; delivery status is uncertain")
+    if response.is_error: raise RuntimeError(f"Gmail rejected the send with HTTP {response.status_code}")
     return str(response.json().get("id",""))
+async def _record_failure(pool,job,status,error):
+    async with pool.acquire() as conn:
+        await conn.execute("UPDATE external_action_jobs SET status=$1,last_error=$2,updated_at=now() WHERE id=$3",status,str(error)[:500],job["id"])
+        await conn.execute("INSERT INTO audit_events(user_id,event_type,resource_id,details) VALUES($1,'action.send_failed',$2,$3)",job["user_id"],job["approval_id"],{"status":status,"error":str(error)[:300]})
 async def process_one(pool):
     async with pool.acquire() as conn:
         async with conn.transaction():
@@ -26,26 +34,36 @@ async def process_one(pool):
               AND a.status='approved' AND a.executed_at IS NULL ORDER BY q.created_at FOR UPDATE OF q SKIP LOCKED LIMIT 1""")
             if job is None: return False
             await conn.execute("UPDATE external_action_jobs SET status='processing',attempts=attempts+1,updated_at=now() WHERE id=$1",job["id"])
+    payload=job["payload"]
     try:
-        payload=job["payload"]
         if digest(payload)!=job["content_hash"]: raise RuntimeError("Approved payload hash mismatch; refusing to send")
-        if job["action_type"]=="email.send": provider_id=await send_gmail(pool,job["user_id"],payload)
+        if job["action_type"]=="email.send": provider_id=await send_gmail(pool,job["user_id"],payload,job["approval_id"])
         elif job["action_type"]=="whatsapp.message":
-            result=await send_text_message(payload["recipient"],payload["message"]); provider_id=str((result.get("messages") or [{}])[0].get("id",""))
+            try: result=await send_text_message(payload["recipient"],payload["message"])
+            except httpx.TransportError as exc: raise UncertainDelivery("WhatsApp request transport failed; delivery status is uncertain") from exc
+            provider_id=str((result.get("messages") or [{}])[0].get("id",""))
         else: raise RuntimeError("This action type has no authorized provider adapter")
-        async with pool.acquire() as conn:
-            async with conn.transaction():
-                await conn.execute("UPDATE action_approvals SET executed_at=now() WHERE id=$1 AND status='approved' AND executed_at IS NULL",job["approval_id"])
-                await conn.execute("UPDATE external_action_jobs SET status='done',provider_message_id=$1,last_error=NULL,updated_at=now() WHERE id=$2",provider_id,job["id"])
-                await conn.execute("INSERT INTO audit_events(user_id,event_type,resource_id,details) VALUES($1,'action.sent',$2,$3)",job["user_id"],job["approval_id"],{"provider_message_id":provider_id})
+    except UncertainDelivery as exc:
+        await _record_failure(pool,job,"uncertain",exc)
+        return True
+    except httpx.TransportError as exc:
+        await _record_failure(pool,job,"uncertain",f"Provider transport failed; delivery status is uncertain: {exc}")
+        return True
     except Exception as exc:
-        async with pool.acquire() as conn:
-            await conn.execute("UPDATE external_action_jobs SET status=CASE WHEN attempts>=3 THEN 'failed' ELSE 'blocked' END,last_error=$1,updated_at=now() WHERE id=$2",str(exc)[:500],job["id"])
-            await conn.execute("INSERT INTO audit_events(user_id,event_type,resource_id,details) VALUES($1,'action.send_failed',$2,$3)",job["user_id"],job["approval_id"],{"error":str(exc)[:300]})
+        status="failed" if job["attempts"]>=3 else "blocked"
+        await _record_failure(pool,job,status,exc)
+        return True
+    # Do not convert a post-send database failure into a retryable state: the provider may already have sent it.
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            await conn.execute("UPDATE action_approvals SET executed_at=now() WHERE id=$1 AND status='approved' AND executed_at IS NULL",job["approval_id"])
+            await conn.execute("UPDATE external_action_jobs SET status='done',provider_message_id=$1,last_error=NULL,updated_at=now() WHERE id=$2",provider_id,job["id"])
+            await conn.execute("INSERT INTO audit_events(user_id,event_type,resource_id,details) VALUES($1,'action.sent',$2,$3)",job["user_id"],job["approval_id"],{"provider_message_id":provider_id})
     return True
 async def run_worker(dsn):
     pool=await asyncpg.create_pool(dsn,min_size=1,max_size=5,init=init_connection)
     try:
+        await pool.execute("UPDATE external_action_jobs SET status='uncertain',last_error='Worker stopped while sending; check provider Sent/Message history before retrying',updated_at=now() WHERE status='processing' AND updated_at<now()-interval '5 minutes'")
         while True:
             if not await process_one(pool): await asyncio.sleep(2)
     finally: await pool.close()

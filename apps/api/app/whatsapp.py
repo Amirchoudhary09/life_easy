@@ -60,7 +60,8 @@ async def send_text_message(recipient,text):
     url=f"https://graph.facebook.com/{GRAPH_API_VERSION}/{PHONE_NUMBER_ID}/messages"
     async with httpx.AsyncClient(timeout=20) as client:
         response=await client.post(url,headers={"Authorization":f"Bearer {ACCESS_TOKEN}"},json={"messaging_product":"whatsapp","recipient_type":"individual","to":recipient,"type":"text","text":{"preview_url":False,"body":text}})
-    if response.is_error: raise RuntimeError(f"WhatsApp send failed with HTTP {response.status_code}")
+    if response.status_code>=500: raise httpx.HTTPStatusError(f"WhatsApp send status uncertain: HTTP {response.status_code}",request=response.request,response=response)
+    if response.is_error: raise RuntimeError(f"WhatsApp send rejected with HTTP {response.status_code}")
     return response.json()
 @router.post("")
 async def receive_webhook(request:Request,db:asyncpg.Pool=Depends(get_db)):
