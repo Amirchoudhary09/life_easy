@@ -70,7 +70,7 @@ async def phone_login_send(body:PhoneLoginSend,db:asyncpg.Pool=Depends(get_db)):
         result=await client.post(f"https://verify.twilio.com/v2/Services/{service}/Verifications",auth=(sid,token),data={"To":body.phone_e164,"Channel":"sms"})
     if result.is_error: raise HTTPException(status_code=502,detail="Could not send phone OTP")
     await db.execute("INSERT INTO otp_challenges(user_id,channel,target,purpose,code_hash,expires_at) VALUES($1,'sms',$2,'login','twilio',now()+interval '10 minutes')",user["id"],body.phone_e164)
-    return {"status":"sent","expires_in":600}
+    return {"status":"sent","message":"If this number belongs to a verified Life Easy account, a code has been sent.","expires_in":600}
 @router.post("/phone/verify")
 async def phone_login_verify(body:PhoneLoginVerify,response:Response,db:asyncpg.Pool=Depends(get_db)):
     sid=os.getenv("TWILIO_ACCOUNT_SID",""); token=os.getenv("TWILIO_AUTH_TOKEN",""); service=os.getenv("TWILIO_VERIFY_SERVICE_SID","")

@@ -38,7 +38,7 @@ app=FastAPI(title=settings.app_name,version="0.5.0",lifespan=lifespan)
 app.add_middleware(CORSMiddleware,allow_origins=[settings.frontend_origin],allow_credentials=True,allow_methods=["GET","POST","PUT","PATCH","DELETE","OPTIONS"],allow_headers=["Authorization","Content-Type","X-Request-ID","X-CSRF-Token"])
 @app.middleware("http")
 async def csrf_guard(request:Request,call_next):
-    if request.method in {"POST","PUT","PATCH","DELETE"} and request.url.path not in {"/api/v1/auth/login","/api/v1/auth/register"} and request.cookies.get("life_easy_access"):
+    if request.method in {"POST","PUT","PATCH","DELETE"} and request.url.path not in {"/api/v1/auth/login","/api/v1/auth/register","/api/v1/auth/phone/send","/api/v1/auth/phone/verify"} and request.cookies.get("life_easy_access"):
         cookie=request.cookies.get("life_easy_csrf","")
         header=request.headers.get("x-csrf-token","")
         if not cookie or not header or not hmac.compare_digest(cookie,header):
