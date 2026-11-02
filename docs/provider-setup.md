@@ -47,7 +47,7 @@ Jobicy (APAC engineering feed) and Remote OK public JSON feeds are ingested with
 
 ## Admin and developer access
 - The admin console is available at /admin. No admin password or developer credential is committed or pre-created.
-- To authorize the first administrator after deployment, set ADMIN_EMAILS to a comma-separated allowlist of account email addresses in the API environment, then create those accounts through normal signup and verify them. Those allowlisted accounts receive the admin role at login.
+- To authorize the first administrator after deployment, set ADMIN_EMAILS to a comma-separated allowlist of account email addresses in the API environment, then create those accounts through normal signup and verify them. Those allowlisted accounts receive the admin role at login after verifying their email or phone. Leave ADMIN_EMAILS unset until you are ready to activate admin access.
 - Admins can assign admin/developer/user roles, suspend accounts, manage public Greenhouse/Lever board identifiers and feature flags. Developers can view operational health, job ingestion and audit events but cannot manage user roles.
 - Secrets are never displayed in the developer console; it only shows configured/not-configured status. Keep provider secrets in the hosting secret manager.
 

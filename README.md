@@ -12,9 +12,10 @@ Life Easy is a multi-user, career-first AI assistant. It combines job discovery,
 - WhatsApp Business webhook signature validation, one-time account linking, inbound routing and assistant replies.
 - Gmail OAuth using each user's own Google account. OAuth tokens are encrypted at rest.
 - Exact-message approval previews. Approval binds destination, channel and body to a SHA-256 content hash. A separate worker re-checks the hash before sending Gmail or WhatsApp messages.
+- Role-based admin and developer control plane at /admin: user and role management, account suspension, public job-board management, feature flags, indexed job inspection, service health, worker heartbeat and audit trail. Admin credentials are not created or committed; first-admin access uses a later ADMIN_EMAILS allowlist in hosting settings.
 
 ## Architecture
-- Web: Next.js 15, deployed on Vercel.
+- Web: Next.js 16, deployed on Vercel.
 - API: FastAPI + asyncpg, deployed as a Render web service.
 - Worker: separate Render background worker for scheduled job ingestion and approved message delivery.
 - Database: managed PostgreSQL. Migrations live in apps/api/migrations.
@@ -50,7 +51,7 @@ See docs/provider-setup.md for email OTP, SMS OTP, Gmail OAuth, WhatsApp Busines
 - Greenhouse and Lever ingestion requires configured public company board tokens/site names. Jobicy and Remote OK feeds work without credentials and are credited with source links. It does not scrape LinkedIn or private job boards.
 - ATS analysis is a transparent heuristic, not a proprietary vendor ATS score.
 - Gmail send and WhatsApp replies require provider setup and user authorization. LinkedIn outbound actions are not implemented; LinkedIn assistance is limited to drafting/research.
-- Provider-side OAuth revocation, password reset, stronger abuse/rate limiting, admin board management, observability, backup policy and external penetration testing remain before public production launch.
+- Provider-side OAuth revocation, password reset, advanced abuse/rate limiting, production observability/alerting, backup/restore drills and external penetration testing remain before public production launch.
 - Configure HTTPS frontend/API origins for credentialed CORS. Prefer custom app/api domains under the same registrable domain for reliable browser cookie behavior.
 
 ## Development checks
