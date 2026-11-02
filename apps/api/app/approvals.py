@@ -71,6 +71,20 @@ async def list_approvals(user=Depends(current_user), db: asyncpg.Pool = Depends(
     return {"approvals": [dict(row) for row in rows]}
 
 
+@router.post("/{approval_id}/retry")
+async def retry_approval(approval_id:UUID,user=Depends(current_user),db:asyncpg.Pool=Depends(get_db)):
+    async with db.acquire() as conn:
+        async with conn.transaction():
+            row=await conn.fetchrow("SELECT id,status,executed_at FROM action_approvals WHERE id=$1 AND user_id=$2 FOR UPDATE",approval_id,user["id"])
+            if row is None: raise HTTPException(status_code=404,detail="Approval not found")
+            if row["status"]!="approved" or row["executed_at"] is not None: raise HTTPException(status_code=409,detail="Only approved, unsent actions can be retried")
+            job=await conn.fetchrow("SELECT id,status FROM external_action_jobs WHERE approval_id=$1 FOR UPDATE",approval_id)
+            if job is None: raise HTTPException(status_code=404,detail="Action queue record not found")
+            if job["status"] not in {"blocked","failed"}: raise HTTPException(status_code=409,detail="Action is not waiting for retry")
+            await conn.execute("UPDATE external_action_jobs SET status='pending',attempts=0,last_error=NULL,available_at=now(),updated_at=now() WHERE id=$1",job["id"])
+            await conn.execute("INSERT INTO audit_events(user_id,event_type,resource_id,details) VALUES($1,'approval.retried',$2,$3)",user["id"],approval_id,{})
+    return {"approval_id":str(approval_id),"status":"queued"}
+
 @router.post("/{approval_id}/confirm")
 async def confirm_approval(
     approval_id: UUID,
