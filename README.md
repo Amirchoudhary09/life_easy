@@ -53,26 +53,21 @@ docs/        Architecture, security, and provider setup
 
 ## Current implementation status
 
-This repository is a foundation, not a completed SaaS. The dashboard is a starter landing/workspace UI; the API has scaffolding endpoints and a WhatsApp webhook verification/signature-validation scaffold. The webhook currently acknowledges verified events but does not yet identify users, queue work, or generate replies.
+Implemented in the MVP foundation branch:
+- Email/password registration and login with Argon2 password hashing and short-lived JWT bearer tokens.
+- Authenticated, user-scoped career profile read/update endpoints.
+- Authenticated job search against jobs already indexed in PostgreSQL, explainable baseline matching, and per-user saved jobs.
+- Per-message approval records bound to a hash of the exact destination/channel/message preview, explicit approve/cancel endpoint, and audit events.
+- Versioned SQL migrations and a migration runner.
+- Starter signup/login and signed-in career profile dashboard.
+- WhatsApp webhook signature verification scaffold.
 
-Not yet production-ready: authentication, multi-tenant authorization, persistent conversation memory, real job-source adapters, Gmail OAuth, LinkedIn integration, background workers, approvals persistence/execution, end-to-end tests, and deployment. Provider credentials and business verification must be configured by the owner. Never commit secrets.
+Still not complete or production-ready:
+- Email and phone OTP verification, OAuth login, password reset, secure HttpOnly cookie sessions, rate limits, and abuse protection.
+- Live job-source adapters and scheduled ingestion. Search currently queries the database; it does not crawl or fetch live jobs.
+- Resume upload and private object storage, AI-powered parsing and advanced matching.
+- WhatsApp sender-to-user binding, inbound message persistence, AI orchestration, and auto-replies.
+- Gmail OAuth and send adapter, LinkedIn authorized integrations, external-action execution worker, and end-to-end delivery tests.
+- Deployment, production database provisioning, secret configuration, monitoring, backups, and full security review.
 
-## Security principles
-
-- Per-user data isolation and authorization on every API route and database query.
-- Encrypt OAuth refresh tokens at rest using managed keys.
-- Keep secrets in hosting secret stores, never in Git or chat.
-- Require explicit confirmation before external actions.
-- Keep an audit trail for approvals and executed actions.
-- Use rate limits, retries, idempotency, and provider quotas.
-- Keep resumes, recruiter research, and conversations out of public logs.
-- Provide account disconnect, data export, and deletion workflows.
-
-## License
-
-Proprietary personal project. Add a license only when the owner decides how the code may be reused.
-
-
-## Mandatory send approval
-
-Life Easy must show the exact destination, channel, complete message, and attachments and obtain the user's explicit final approval before sending any message to another person or publishing to an external audience. This applies separately to every email, LinkedIn message/post, recruiter outreach, and other outbound communication. Editing the recipient or content invalidates the approval. Normal assistant replies to the user in their active chat do not need an extra confirmation.
+The approval endpoint only records approval state. It does not send anything. No external message can be sent by this scaffold because send workers/adapters are not yet connected.
