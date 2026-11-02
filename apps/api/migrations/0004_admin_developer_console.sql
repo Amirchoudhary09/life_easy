@@ -25,3 +25,9 @@ CREATE TABLE IF NOT EXISTS feature_flags(
  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS audit_events_created_idx ON audit_events(created_at DESC);
+
+CREATE TABLE IF NOT EXISTS worker_heartbeats(
+ service_name TEXT PRIMARY KEY,
+ last_seen TIMESTAMPTZ NOT NULL DEFAULT now(),
+ metadata JSONB NOT NULL DEFAULT '{}'::jsonb
+);

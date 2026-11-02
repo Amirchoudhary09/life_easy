@@ -136,7 +136,8 @@ async def developer_health(user=Depends(developer_user),db:asyncpg.Pool=Depends(
     env=["JWT_SECRET","OTP_PEPPER","RESEND_API_KEY","TWILIO_VERIFY_SERVICE_SID","RESUME_BUCKET","OPENAI_API_KEY","TOKEN_ENCRYPTION_KEY","GOOGLE_CLIENT_ID","GOOGLE_CLIENT_SECRET","WHATSAPP_ACCESS_TOKEN","WHATSAPP_APP_SECRET"]
     configured={key:bool(os.getenv(key)) for key in env}
     counts=await db.fetchrow("SELECT count(*) FILTER(WHERE status='pending') AS pending,count(*) FILTER(WHERE status='processing') AS processing,count(*) FILTER(WHERE status='uncertain') AS uncertain,count(*) FILTER(WHERE status='failed') AS failed FROM external_action_jobs")
-    return {"api":"healthy","database":"connected","providers":configured,"delivery_queue":dict(counts),"secrets_exposed":False}
+    heartbeat=await db.fetchrow("SELECT last_seen,metadata FROM worker_heartbeats WHERE service_name='background-worker'")
+    return {"api":"healthy","database":"connected","worker":{"last_seen":heartbeat["last_seen"],"metadata":heartbeat["metadata"]} if heartbeat else {"last_seen":None,"status":"not_seen"},"providers":configured,"delivery_queue":dict(counts),"secrets_exposed":False}
 
 @router.post("/jobs/ingest")
 async def trigger_ingestion(user=Depends(developer_user),db:asyncpg.Pool=Depends(get_db)):

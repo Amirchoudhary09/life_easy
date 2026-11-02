@@ -10,7 +10,14 @@ async def run():
     interval=max(3600,int(os.getenv("JOB_INGESTION_INTERVAL_SECONDS","21600"))); next_ingest=0; next_recovery=0
     loop=asyncio.get_running_loop()
     try:
+        next_heartbeat=0
         while True:
+            if loop.time()>=next_heartbeat:
+                await pool.execute("""INSERT INTO worker_heartbeats(service_name,last_seen,metadata)
+                    VALUES('background-worker',now(),$1::jsonb)
+                    ON CONFLICT(service_name) DO UPDATE SET last_seen=now(),metadata=EXCLUDED.metadata""",
+                    {"job_ingestion_interval_seconds":interval})
+                next_heartbeat=loop.time()+15
             if loop.time()>=next_recovery:
                 await pool.execute("UPDATE external_action_jobs SET status='uncertain',last_error='Worker stopped while sending; check provider Sent/Message history before retrying',updated_at=now() WHERE status='processing' AND updated_at<now()-interval '5 minutes'")
                 next_recovery=loop.time()+60
