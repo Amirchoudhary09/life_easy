@@ -5,6 +5,7 @@ from pydantic import BaseModel,Field
 from app.auth import current_user
 from app.db import get_db
 from app.matching import score_job
+from app.feature_flags import require_feature
 router=APIRouter(prefix="/api/v1/jobs",tags=["Jobs"])
 class SearchBody(BaseModel):
     query:str=Field(min_length=2,max_length=200)
@@ -12,6 +13,7 @@ class SearchBody(BaseModel):
     limit:int=Field(default=20,ge=1,le=50)
 @router.post("/search")
 async def search_jobs(body:SearchBody,user=Depends(current_user),db:asyncpg.Pool=Depends(get_db)):
+    await require_feature(db,"job_search")
     profile=await db.fetchrow("SELECT headline,skills,preferences FROM profiles WHERE user_id=$1",user["id"])
     skills=list(profile["skills"] or []) if profile else []
     headline=profile["headline"] if profile else None

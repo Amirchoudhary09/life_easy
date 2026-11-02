@@ -6,6 +6,7 @@ from fastapi import APIRouter,Depends,HTTPException
 from pydantic import BaseModel,Field
 from app.auth import current_user
 from app.db import get_db
+from app.feature_flags import require_feature
 router=APIRouter(prefix="/api/v1/assistant",tags=["AI Assistant"])
 class ChatBody(BaseModel):
     message:str=Field(min_length=1,max_length=8000)
@@ -39,6 +40,7 @@ async def generate_reply(db:asyncpg.Pool,user_id,conversation_id,message,provide
 
 @router.post("/chat")
 async def chat(body:ChatBody,user=Depends(current_user),db:asyncpg.Pool=Depends(get_db)):
+    await require_feature(db,"ai_assistant")
     if not os.getenv("OPENAI_API_KEY"): raise HTTPException(status_code=503,detail="AI provider is not configured yet")
     if body.conversation_id:
         conv=await db.fetchrow("SELECT id FROM conversations WHERE id=$1 AND user_id=$2 AND channel='web'",body.conversation_id,user["id"])

@@ -9,6 +9,7 @@ from pypdf import PdfReader
 from pydantic import BaseModel,Field
 from app.auth import current_user
 from app.db import get_db
+from app.feature_flags import require_feature
 router=APIRouter(prefix="/api/v1/resumes",tags=["Resumes"])
 MAX_BYTES=8*1024*1024
 SKILLS={"python","java","c++","c","javascript","typescript","react","next.js","node.js","fastapi","django","flask","sql","postgresql","mysql","mongodb","redis","docker","kubernetes","aws","azure","gcp","git","linux","machine learning","deep learning","langchain","llm","rag","vector database","pytorch","tensorflow","html","css","kotlin","android","rest api","microservices","system design","data structures","algorithms"}
@@ -50,6 +51,7 @@ def detect_skills(text):
     return sorted(s for s in SKILLS if re.search(r"(?<![a-z0-9+#.])"+re.escape(s)+r"(?![a-z0-9+#.])",lower))
 @router.post("",status_code=201)
 async def upload(file:UploadFile=File(...),user=Depends(current_user),db:asyncpg.Pool=Depends(get_db)):
+    await require_feature(db,"resume_processing")
     filename=(file.filename or "resume").replace("\\","/").split("/")[-1][:180]
     if not filename.lower().endswith((".pdf",".docx")): raise HTTPException(status_code=415,detail="Only PDF and DOCX resumes are accepted")
     raw=await file.read(MAX_BYTES+1)
@@ -72,6 +74,7 @@ async def list_resumes(user=Depends(current_user),db:asyncpg.Pool=Depends(get_db
     return {"resumes":[dict(r) for r in rows]}
 @router.post("/{resume_id}/analyze")
 async def analyze(resume_id:str,body:AnalyzeBody,user=Depends(current_user),db:asyncpg.Pool=Depends(get_db)):
+    await require_feature(db,"resume_processing")
     row=await db.fetchrow("SELECT extracted_text,filename FROM resume_documents WHERE id=$1::uuid AND user_id=$2",resume_id,user["id"])
     if row is None: raise HTTPException(status_code=404,detail="Resume not found")
     text=row["extracted_text"]; lower=text.lower(); resume_skills=set(detect_skills(text))
