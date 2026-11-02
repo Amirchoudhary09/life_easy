@@ -23,12 +23,12 @@ export default function LoginPage() {
     try {
       const response = await fetch(`${API}/api/v1/auth/${mode}`, {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(mode === "register" ? { display_name: name, email, password } : { email, password }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.detail || "Unable to continue. Please try again.");
-      sessionStorage.setItem("life_easy_token", data.access_token);
       router.push("/dashboard");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");

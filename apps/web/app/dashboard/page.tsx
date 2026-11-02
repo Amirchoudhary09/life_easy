@@ -8,7 +8,6 @@ const tabs=["Overview","Jobs","Applications","Resume & ATS","AI assistant","Conn
 const statuses=["planned","applied","assessment","interview","offer","rejected","withdrawn"];
 export default function DashboardPage(){
  const router=useRouter();
- const [token,setToken]=useState("");
  const [user,setUser]=useState<any>(null);
  const [tab,setTab]=useState("Overview");
  const [notice,setNotice]=useState("");
@@ -35,19 +34,20 @@ export default function DashboardPage(){
  const [pending,setPending]=useState<any>(null);
  const [approvals,setApprovals]=useState<any[]>([]);
  const [sourceStatus,setSourceStatus]=useState<any>(null);
- async function api(path:string,init:RequestInit={},auth=token){
+ async function api(path:string,init:RequestInit={}){
   const headers=new Headers(init.headers||{});
-  if(auth)headers.set("Authorization","Bearer "+auth);
+  const csrf=document.cookie.split("; ").find(x=>x.startsWith("life_easy_csrf="))?.split("=")[1];
+  if(csrf)headers.set("X-CSRF-Token",decodeURIComponent(csrf));
   if(init.body && !(init.body instanceof FormData))headers.set("Content-Type","application/json");
-  const r=await fetch(API+path,{...init,headers});
+  const r=await fetch(API+path,{...init,headers,credentials:"include"});
   const data=await r.json().catch(()=>({}));
   if(!r.ok)throw new Error(data.detail||data.message||("Request failed: "+r.status));
   return data;
  }
- async function load(t:string){
-  const me=await api("/api/v1/auth/me",{},t);setUser(me.user);
+ async function load(){
+  const me=await api("/api/v1/auth/me");setUser(me.user);
   const results=await Promise.allSettled([
-   api("/api/v1/profile",{},t),api("/api/v1/applications",{},t),api("/api/v1/resumes",{},t),
+   api("/api/v1/profile"),api("/api/v1/applications",{},t),api("/api/v1/resumes",{},t),
    api("/api/v1/integrations",{},t),api("/api/v1/approvals",{},t),api("/api/v1/jobs/sources",{},t)
   ]);
   const [p,a,r,i,ap,s]=results;
@@ -58,8 +58,8 @@ export default function DashboardPage(){
   if(ap.status==="fulfilled")setApprovals(ap.value.approvals||[]);
   if(s.status==="fulfilled")setSourceStatus(s.value);
  }
- useEffect(()=>{const t=sessionStorage.getItem("life_easy_token");if(!t){router.replace("/login");return;}setToken(t);load(t).catch(()=>{sessionStorage.removeItem("life_easy_token");router.replace("/login");}).finally(()=>setBusy(false));},[router]);
- function logout(){sessionStorage.removeItem("life_easy_token");router.replace("/login");}
+ useEffect(()=>{load().catch(()=>router.replace("/login")).finally(()=>setBusy(false));},[router]);
+ async function logout(){try{await api("/api/v1/auth/logout",{method:"POST"});}finally{router.replace("/login");}}
  async function saveProfile(e:FormEvent){e.preventDefault();try{await api("/api/v1/profile",{method:"PUT",body:JSON.stringify({...profile,experience_years:Number(profile.experience_years),skills:Array.isArray(profile.skills)?profile.skills:String(profile.skills||"").split(",").map((x:string)=>x.trim()).filter(Boolean),preferences:profile.preferences||{}})});setNotice("Profile saved.");}catch(e){setNotice((e as Error).message);}}
  async function searchJobs(e:FormEvent){e.preventDefault();setBusy(true);try{const d=await api("/api/v1/jobs/search",{method:"POST",body:JSON.stringify({query,locations:locations.split(",").map(x=>x.trim()).filter(Boolean),limit:40})});setJobs(d.jobs||[]);setNotice(d.message||("Found "+d.count+" jobs."));}catch(e){setNotice((e as Error).message);}finally{setBusy(false);}}
  async function saveJob(j:any){try{await api("/api/v1/jobs/"+j.id+"/save",{method:"POST"});setJobs(v=>v.map(x=>x.id===j.id?{...x,saved_status:"saved"}:x));setNotice("Job saved.");}catch(e){setNotice((e as Error).message);}}
