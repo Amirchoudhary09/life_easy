@@ -71,3 +71,8 @@ Not yet production-ready: authentication, multi-tenant authorization, persistent
 ## License
 
 Proprietary personal project. Add a license only when the owner decides how the code may be reused.
+
+
+## Mandatory send approval
+
+Life Easy must show the exact destination, channel, complete message, and attachments and obtain the user's explicit final approval before sending any message to another person or publishing to an external audience. This applies separately to every email, LinkedIn message/post, recruiter outreach, and other outbound communication. Editing the recipient or content invalidates the approval. Normal assistant replies to the user in their active chat do not need an extra confirmation.
