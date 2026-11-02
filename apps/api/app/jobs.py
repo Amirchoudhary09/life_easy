@@ -17,7 +17,7 @@ async def search_jobs(body:SearchBody,user=Depends(current_user),db:asyncpg.Pool
     headline=profile["headline"] if profile else None
     patterns=[f"%{x.strip()}%" for x in body.locations if x.strip()]
     remote_requested=any("remote" in x.lower() for x in body.locations)
-    rows=await db.fetch("""SELECT j.id,j.source,j.company,j.title,j.location,j.employment_type,j.experience_text,j.description,j.apply_url,j.posted_at,j.source_checked_at,j.is_remote,m.status AS saved_status
+    rows=await db.fetch("""SELECT j.id,j.source,j.company,j.title,j.location,j.employment_type,j.experience_text,j.description,j.apply_url,j.posted_at,j.source_checked_at,j.is_remote,j.salary_min,j.salary_max,j.salary_currency,m.status AS saved_status
       FROM jobs j LEFT JOIN job_matches m ON m.job_id=j.id AND m.user_id=$1
       WHERE (j.title ILIKE $2 OR j.company ILIKE $2 OR COALESCE(j.description,'') ILIKE $2)
       AND (cardinality($3::text[])=0 OR j.location ILIKE ANY($3::text[]) OR ($4::boolean AND j.is_remote))

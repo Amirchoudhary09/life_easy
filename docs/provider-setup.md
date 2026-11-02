@@ -43,7 +43,7 @@ Set OPENAI_API_KEY and optionally OPENAI_BASE_URL and OPENAI_MODEL. Model usage 
 6. Review Meta business verification, templates, conversation pricing and policy requirements.
 
 ## Job ingestion
-Set GREENHOUSE_BOARD_TOKENS and LEVER_SITE_NAMES to comma-separated public employer board identifiers. The worker fetches postings every JOB_INGESTION_INTERVAL_SECONDS (default six hours), upserts them and records source runs. Do not scrape LinkedIn or bypass access controls.
+Jobicy (APAC engineering feed) and Remote OK public JSON feeds are ingested without credentials every six hours. Keep each listing credited with its source and link users to the source posting. Jobicy limits public API polling to no more than once per hour; the default six-hour cadence respects this. Set GREENHOUSE_BOARD_TOKENS and LEVER_SITE_NAMES to add public employer boards. Do not scrape LinkedIn or bypass access controls.
 
 ## Deployment order
 1. Create managed PostgreSQL and private object storage.

@@ -7,7 +7,7 @@ Life Easy is a multi-user, career-first AI assistant. It combines job discovery,
 - Email OTP (Resend) and phone OTP (Twilio Verify) account verification.
 - User-isolated profiles, resumes, saved jobs, applications, conversations and memories.
 - Private PDF/DOCX resume storage on S3-compatible storage, text extraction, skill detection and transparent heuristic ATS-style analysis.
-- Job ingestion from public Greenhouse and Lever company boards; normalized jobs are matched against each user's skills and preferences.
+- Job ingestion from public Jobicy and Remote OK feeds plus configurable Greenhouse and Lever company boards; normalized jobs are matched against each user's skills and preferences.
 - Career copilot powered by an OpenAI-compatible chat completion endpoint, with user-specific profile/resume/memory context.
 - WhatsApp Business webhook signature validation, one-time account linking, inbound routing and assistant replies.
 - Gmail OAuth using each user's own Google account. OAuth tokens are encrypted at rest.
@@ -47,7 +47,7 @@ Life Easy is a multi-user, career-first AI assistant. It combines job discovery,
 See docs/provider-setup.md for email OTP, SMS OTP, Gmail OAuth, WhatsApp Business, private storage and AI setup. Credentials belong in hosting secret stores, never in Git or chat.
 
 ## Current honest limitations
-- Greenhouse and Lever ingestion requires configured public company board tokens/site names. It does not scrape LinkedIn or private job boards.
+- Greenhouse and Lever ingestion requires configured public company board tokens/site names. Jobicy and Remote OK feeds work without credentials and are credited with source links. It does not scrape LinkedIn or private job boards.
 - ATS analysis is a transparent heuristic, not a proprietary vendor ATS score.
 - Gmail send and WhatsApp replies require provider setup and user authorization. LinkedIn outbound actions are not implemented; LinkedIn assistance is limited to drafting/research.
 - Provider-side OAuth revocation, password reset, stronger abuse/rate limiting, admin board management, observability, backup policy and external penetration testing remain before public production launch.
