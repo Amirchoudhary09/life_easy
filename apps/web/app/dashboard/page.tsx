@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import type { FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -43,7 +44,7 @@ export default function DashboardPage() {
       .finally(() => setBusy(false));
   }, [router]);
 
-  async function saveProfile(event: React.FormEvent<HTMLFormElement>) {
+  async function saveProfile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const token = sessionStorage.getItem("life_easy_token");
     if (!token) return router.replace("/login");
