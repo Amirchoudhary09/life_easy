@@ -13,3 +13,8 @@
 - [ ] Add retention and account-deletion workflows.
 - [ ] Restrict CORS to the deployed frontend origin.
 - [ ] Rotate credentials through hosting secret stores; never commit .env.
+
+
+- [ ] Enforce a global per-message approval gate for every outbound communication to another person/audience across email, LinkedIn, WhatsApp/SMS, and other connected channels.
+- [ ] Approval preview must bind exact channel, recipient/audience, full message body, and attachments; invalidate approval if any field changes.
+- [ ] Store approval evidence, content hash, timestamp, destination, execution result, and idempotency key. Never treat silence or standing consent as approval.
