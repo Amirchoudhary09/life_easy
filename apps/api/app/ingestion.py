@@ -32,20 +32,23 @@ def normalize_remoteok(item):
     url=item.get("url") or item.get("apply_url") or ""
     return {"source":"remoteok","source_job_id":str(item.get("id") or item.get("slug") or ""),"company":str(item.get("company") or "Unknown company")[:200],"title":str(item.get("position") or "Untitled role")[:300],"location":str(item.get("location") or "Remote")[:300],"description":str(item.get("description") or "")[:50000],"apply_url":url,"source_url":url,"posted_at":parse_date(item.get("date")),"is_remote":True,"employment_type":None,"salary_min":number(item.get("salary_min")),"salary_max":number(item.get("salary_max")),"salary_currency":"USD" if item.get("salary_min") or item.get("salary_max") else None}
 
-async def fetch_public_jobs(client):
-    jobicy=[]; cursor=None
+async def fetch_jobicy(client):
+    jobs=[]; cursor=None
     for _ in range(3):
         params={"count":200,"geo":"apac","industry":"engineering"}
         if cursor: params["cursor"]=cursor
         response=await client.get("https://jobicy.com/api/jobs",params=params); response.raise_for_status()
-        data=response.json(); jobicy.extend(data.get("jobs",[]) or [])
+        data=response.json(); jobs.extend(data.get("jobs",[]) or [])
         cursor=data.get("nextCursor")
         if not cursor: break
-    remote_response=await client.get("https://remoteok.com/api",headers={"Accept":"application/json"})
-    remote_response.raise_for_status()
-    remote_data=remote_response.json()
-    remote=[x for x in (remote_data if isinstance(remote_data,list) else []) if isinstance(x,dict) and x.get("position") and x.get("id")]
-    return [normalize_jobicy(x) for x in jobicy]+[normalize_remoteok(x) for x in remote]
+    return [normalize_jobicy(x) for x in jobs]
+
+async def fetch_remoteok(client):
+    response=await client.get("https://remoteok.com/api",headers={"Accept":"application/json"})
+    response.raise_for_status()
+    data=response.json()
+    jobs=[x for x in (data if isinstance(data,list) else []) if isinstance(x,dict) and x.get("position") and x.get("id")]
+    return [normalize_remoteok(x) for x in jobs]
 
 async def ingest_configured_boards(pool:asyncpg.Pool):
     greenhouse=[x.strip() for x in os.getenv("GREENHOUSE_BOARD_TOKENS","").split(",") if x.strip()]
@@ -57,9 +60,10 @@ async def ingest_configured_boards(pool:asyncpg.Pool):
         for source,key in sources:
             run_id=await pool.fetchval("INSERT INTO job_source_runs(source,board_key,status) VALUES($1,$2,'running') RETURNING id",source,key)
             try:
-                if source in {"jobicy","remoteok"}:
-                    all_public=await fetch_public_jobs(client)
-                    normalized=[x for x in all_public if x["source"]==source]
+                if source=="jobicy":
+                    normalized=await fetch_jobicy(client)
+                elif source=="remoteok":
+                    normalized=await fetch_remoteok(client)
                 else:
                     url=(f"https://boards-api.greenhouse.io/v1/boards/{key}/jobs?content=true" if source=="greenhouse" else f"https://api.lever.co/v0/postings/{key}?mode=json")
                     response=await client.get(url); response.raise_for_status(); data=response.json()
