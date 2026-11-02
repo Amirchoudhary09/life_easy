@@ -42,8 +42,11 @@ async def process_one(pool):
         return True
     try:
         if digest(payload)!=job["content_hash"]: raise RuntimeError("Approved payload hash mismatch; refusing to send")
-        if job["action_type"]=="email.send": provider_id=await send_gmail(pool,job["user_id"],payload,job["approval_id"])
+        if job["action_type"]=="email.send":
+            if not await feature_enabled(pool,"gmail_integration",True): raise RuntimeError("Gmail integration is disabled by an administrator")
+            provider_id=await send_gmail(pool,job["user_id"],payload,job["approval_id"])
         elif job["action_type"]=="whatsapp.message":
+            if not await feature_enabled(pool,"whatsapp_assistant",True): raise RuntimeError("WhatsApp assistant is disabled by an administrator")
             try: result=await send_text_message(payload["recipient"],payload["message"])
             except httpx.TransportError as exc: raise UncertainDelivery("WhatsApp request transport failed; delivery status is uncertain") from exc
             except httpx.HTTPStatusError as exc:
