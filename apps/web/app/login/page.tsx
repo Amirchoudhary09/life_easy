@@ -15,6 +15,9 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [phone, setPhone] = useState("");
+  const [otp, setOtp] = useState("");
+  const [phoneOtpSent, setPhoneOtpSent] = useState(false);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -37,6 +40,24 @@ export default function LoginPage() {
     }
   }
 
+
+  async function sendPhoneOtp() {
+    setError(""); setBusy(true);
+    try {
+      const r = await fetch(API + "/api/v1/auth/phone/send", { method:"POST", credentials:"include", headers:{"Content-Type":"application/json"}, body:JSON.stringify({phone_e164:phone}) });
+      const d = await r.json(); if(!r.ok) throw new Error(d.detail || "Unable to send OTP");
+      setPhoneOtpSent(true); setError(d.message || "OTP sent if this number belongs to a verified account.");
+    } catch(e) { setError(e instanceof Error ? e.message : "OTP request failed."); } finally { setBusy(false); }
+  }
+  async function verifyPhoneOtp() {
+    setError(""); setBusy(true);
+    try {
+      const r = await fetch(API + "/api/v1/auth/phone/verify", { method:"POST", credentials:"include", headers:{"Content-Type":"application/json"}, body:JSON.stringify({phone_e164:phone,code:otp}) });
+      const d = await r.json(); if(!r.ok) throw new Error(d.detail || "Invalid OTP");
+      router.push("/dashboard");
+    } catch(e) { setError(e instanceof Error ? e.message : "Phone login failed."); } finally { setBusy(false); }
+  }
+
   return <main className="auth-shell">
     <Link className="brand" href="/">life<span>easy</span></Link>
     <section className="auth-card">
@@ -54,7 +75,16 @@ export default function LoginPage() {
         {error && <p className="form-error" role="alert">{error}</p>}
         <button className="primary auth-submit" disabled={busy}>{busy ? "Please wait..." : mode === "login" ? "Log in" : "Create my account"} <span>→</span></button>
       </form>
-      <p className="auth-foot">Your profile and career data are private to your account. Email verification will be enabled after the email provider is configured.</p>
+
+      {mode === "login" && <section className="auth-phone">
+        <p className="eyebrow">OR SIGN IN WITH PHONE OTP</p>
+        <label>Mobile number (E.164)<input value={phone} onChange={e=>setPhone(e.target.value)} placeholder="+919876543210"/></label>
+        {!phoneOtpSent ? <button type="button" className="primary auth-submit" disabled={busy || phone.length < 9} onClick={sendPhoneOtp}>Send OTP →</button> : <>
+          <label>6-digit OTP<input value={otp} onChange={e=>setOtp(e.target.value)} maxLength={6} inputMode="numeric" placeholder="Enter OTP"/></label>
+          <button type="button" className="primary auth-submit" disabled={busy || otp.length !== 6} onClick={verifyPhoneOtp}>Verify & log in →</button>
+        </>}
+      </section>}
+      <p className="auth-foot">Your profile and career data are private to your account. Phone OTP sign-in requires a verified phone number and configured SMS provider.</p>
     </section>
     <p className="auth-back"><Link href="/">← Back to Life Easy</Link></p>
   </main>;

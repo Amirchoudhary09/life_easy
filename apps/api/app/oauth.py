@@ -15,6 +15,12 @@ def cipher():
     if not key: raise RuntimeError("TOKEN_ENCRYPTION_KEY is not configured")
     try: return Fernet(key.encode())
     except Exception: raise RuntimeError("TOKEN_ENCRYPTION_KEY must be a valid Fernet key")
+@router.delete("/{provider}")
+async def disconnect_provider(provider:str,user=Depends(current_user),db:asyncpg.Pool=Depends(get_db)):
+    if provider not in {"gmail"}: raise HTTPException(status_code=400,detail="Unsupported provider")
+    await db.execute("UPDATE provider_connections SET status='disconnected',access_token_encrypted=NULL,refresh_token_encrypted=NULL,updated_at=now() WHERE user_id=$1 AND provider=$2",user["id"],provider)
+    return {"status":"disconnected","provider":provider}
+
 @router.get("")
 async def list_integrations(user=Depends(current_user),db:asyncpg.Pool=Depends(get_db)):
     rows=await db.fetch("SELECT provider,account_email,status,scopes,created_at,updated_at FROM provider_connections WHERE user_id=$1 ORDER BY provider",user["id"])

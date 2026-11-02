@@ -25,6 +25,12 @@ async def verify_webhook(hub_mode:str|None=Query(None,alias="hub.mode"),hub_veri
     if not VERIFY_TOKEN: raise HTTPException(status_code=503,detail="WhatsApp webhook is not configured")
     if hub_mode=="subscribe" and hmac.compare_digest(hub_verify_token or "",VERIFY_TOKEN): return PlainTextResponse(hub_challenge or "")
     raise HTTPException(status_code=403,detail="Webhook verification failed")
+@router.delete("/link")
+async def disconnect_whatsapp(user=Depends(current_user),db:asyncpg.Pool=Depends(get_db)):
+    await db.execute("UPDATE channel_identities SET is_active=FALSE WHERE user_id=$1 AND provider='whatsapp'",user["id"])
+    await db.execute("UPDATE channel_link_tokens SET consumed_at=COALESCE(consumed_at,now()) WHERE user_id=$1 AND provider='whatsapp'",user["id"])
+    return {"status":"disconnected"}
+
 @router.post("/link-code")
 async def create_link_code(user=Depends(current_user),db:asyncpg.Pool=Depends(get_db)):
     alphabet="ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
