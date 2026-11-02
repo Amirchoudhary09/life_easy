@@ -59,17 +59,20 @@ async def register(body:RegisterBody,response:Response,db:asyncpg.Pool=Depends(g
 @router.post("/login")
 async def login(body:LoginBody,response:Response,db:asyncpg.Pool=Depends(get_db)):
     jwt_secret()
-    row=await db.fetchrow("SELECT id,email,display_name,email_verified,password_hash,phone_e164 FROM app_users WHERE email=$1",str(body.email).lower().strip())
+    row=await db.fetchrow("SELECT id,email,display_name,email_verified,password_hash,phone_e164,role,status FROM app_users WHERE email=$1",str(body.email).lower().strip())
     if row is None or not row["password_hash"] or not hasher.verify(body.password,row["password_hash"]): raise HTTPException(status_code=401,detail="Invalid email or password")
+    if row["status"]!="active": raise HTTPException(status_code=403,detail="This account is suspended")
+    allowed={x.strip().lower() for x in os.getenv("ADMIN_EMAILS","").split(",") if x.strip()}
+    role="admin" if row["email"].lower() in allowed else row["role"]
     csrf=set_session(response,row["id"])
-    return {"user":{"id":str(row["id"]),"email":row["email"],"display_name":row["display_name"],"email_verified":row["email_verified"],"phone_e164":row["phone_e164"],"role":row["role"]},"csrf_token":csrf,"token_type":"cookie","expires_in":43200}
+    return {"user":{"id":str(row["id"]),"email":row["email"],"display_name":row["display_name"],"email_verified":row["email_verified"],"phone_e164":row["phone_e164"],"role":role},"csrf_token":csrf,"token_type":"cookie","expires_in":43200}
 @router.post("/phone/send")
 async def phone_login_send(body:PhoneLoginSend,db:asyncpg.Pool=Depends(get_db)):
     sid=os.getenv("TWILIO_ACCOUNT_SID",""); token=os.getenv("TWILIO_AUTH_TOKEN",""); service=os.getenv("TWILIO_VERIFY_SERVICE_SID","")
     if not all((sid,token,service)): raise HTTPException(status_code=503,detail="Phone OTP provider is not configured yet")
     recent=await db.fetchval("SELECT count(*) FROM otp_challenges WHERE target=$1 AND purpose='login' AND created_at>now()-interval '1 hour'",body.phone_e164)
     if recent>=3: raise HTTPException(status_code=429,detail="Too many OTP requests. Try again later.")
-    user=await db.fetchrow("SELECT id FROM app_users WHERE phone_e164=$1 AND phone_verified=TRUE",body.phone_e164)
+    user=await db.fetchrow("SELECT id FROM app_users WHERE phone_e164=$1 AND phone_verified=TRUE AND status='active'",body.phone_e164)
     if user is None: return {"status":"sent","message":"If this number belongs to a verified Life Easy account, a code has been sent."}
     async with httpx.AsyncClient(timeout=20) as client:
         result=await client.post(f"https://verify.twilio.com/v2/Services/{service}/Verifications",auth=(sid,token),data={"To":body.phone_e164,"Channel":"sms"})
