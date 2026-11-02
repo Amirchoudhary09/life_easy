@@ -19,15 +19,31 @@ def storage():
     if not all((bucket,access,secret)): raise HTTPException(status_code=503,detail="Private resume storage is not configured yet")
     return boto3.client("s3",endpoint_url=os.getenv("S3_ENDPOINT_URL") or None,region_name=os.getenv("S3_REGION","auto"),aws_access_key_id=access,aws_secret_access_key=secret),bucket
 def extract(filename,raw):
-    if filename.endswith(".pdf"): text="\n".join(p.extract_text() or "" for p in PdfReader(io.BytesIO(raw)).pages)
-    elif filename.endswith(".docx"):
-        doc=Document(io.BytesIO(raw)); text="\n".join(p.text for p in doc.paragraphs)
-        for table in doc.tables: text+="\n"+"\n".join(" | ".join(c.text for c in row.cells) for row in table.rows)
-        else: raise HTTPException(status_code=415,detail="Upload a PDF or DOCX resume")
-    except HTTPException: raise
-    except (ValueError,zipfile.BadZipFile,KeyError) as exc: raise HTTPException(status_code=422,detail="Resume file could not be parsed") from exc
-    text=re.sub(r"[ \t]+"," ",text); text=re.sub(r"\n{3,}","\n\n",text).strip()
-    if len(text)<80: raise HTTPException(status_code=422,detail="Could not extract enough text. Upload a text-based PDF or DOCX.")
+    try:
+        if filename.lower().endswith(".pdf"):
+            reader=PdfReader(io.BytesIO(raw))
+            if len(reader.pages)>60:
+                raise HTTPException(status_code=413,detail="Resume PDF must contain 60 pages or fewer")
+            text="\\n".join(page.extract_text() or "" for page in reader.pages)
+        elif filename.lower().endswith(".docx"):
+            with zipfile.ZipFile(io.BytesIO(raw)) as archive:
+                expanded=sum(item.file_size for item in archive.infolist())
+                if expanded>30*1024*1024:
+                    raise HTTPException(status_code=413,detail="DOCX expands beyond the allowed size")
+            document=Document(io.BytesIO(raw))
+            text="\\n".join(paragraph.text for paragraph in document.paragraphs)
+            for table in document.tables:
+                text+="\\n"+"\\n".join(" | ".join(cell.text for cell in row.cells) for row in table.rows)
+        else:
+            raise HTTPException(status_code=415,detail="Upload a PDF or DOCX resume")
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=422,detail="Resume file could not be parsed") from exc
+    text=re.sub(r"[ \\t]+"," ",text)
+    text=re.sub(r"\\n{3,}","\\n\\n",text).strip()
+    if len(text)<80:
+        raise HTTPException(status_code=422,detail="Could not extract enough text. Upload a text-based PDF or DOCX.")
     return text[:100000]
 def detect_skills(text):
     lower=text.lower()
