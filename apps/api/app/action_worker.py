@@ -5,6 +5,7 @@ import asyncpg,httpx
 from app.approvals import digest
 from app.oauth import gmail_access_token
 from app.whatsapp import send_text_message
+from app.feature_flags import feature_enabled
 class UncertainDelivery(Exception): pass
 async def init_connection(c):
     import json
@@ -36,6 +37,9 @@ async def process_one(pool):
             if job is None: return False
             await conn.execute("UPDATE external_action_jobs SET status='processing',attempts=attempts+1,updated_at=now() WHERE id=$1",job["id"])
     payload=job["payload"]
+    if not await feature_enabled(pool,"external_delivery",True):
+        await _record_failure(pool,job,"blocked","External delivery is disabled by an administrator")
+        return True
     try:
         if digest(payload)!=job["content_hash"]: raise RuntimeError("Approved payload hash mismatch; refusing to send")
         if job["action_type"]=="email.send": provider_id=await send_gmail(pool,job["user_id"],payload,job["approval_id"])

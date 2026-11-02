@@ -8,6 +8,7 @@ from fastapi import APIRouter,Depends,HTTPException,Query
 from fastapi.responses import RedirectResponse
 from app.auth import current_user
 from app.db import get_db
+from app.feature_flags import require_feature
 router=APIRouter(prefix="/api/v1/integrations",tags=["Integrations"])
 SCOPES=["https://www.googleapis.com/auth/gmail.send","openid","email"]
 def cipher():
@@ -27,6 +28,7 @@ async def list_integrations(user=Depends(current_user),db:asyncpg.Pool=Depends(g
     return {"integrations":[dict(r) for r in rows]}
 @router.get("/gmail/connect")
 async def gmail_connect(user=Depends(current_user),db:asyncpg.Pool=Depends(get_db)):
+    await require_feature(db,"gmail_integration")
     client_id=os.getenv("GOOGLE_CLIENT_ID",""); redirect=os.getenv("GOOGLE_REDIRECT_URI","")
     if not client_id or not redirect: raise HTTPException(status_code=503,detail="Google OAuth credentials are not configured yet")
     state=secrets.token_urlsafe(32)
