@@ -60,3 +60,10 @@ Research, searching, matching, summarizing, and drafting can run automatically. 
 4. Recruiter research and career email drafts with approval.
 5. LinkedIn career content through supported authorized pathways.
 6. Interview preparation, analytics, security hardening, observability, and production deployment.
+
+
+## Mandatory approval before every external message
+
+Every outbound communication to another person or audience must pass a final per-message approval gate, regardless of channel (Gmail, LinkedIn, WhatsApp/SMS, or another connected provider). The approval preview must include the exact destination/audience, channel, full final text, and attachments. Any change to these invalidates approval. Only an explicit confirmation tied to the exact preview can authorize sending. Persist an audit record and idempotency key. No standing consent or blanket "send automatically" permission can bypass this gate.
+
+Routine replies from Life Easy to the user in the same active assistant conversation are exempt so normal chat remains usable. This exception never covers third-party recipients, group messages, or public posts.
