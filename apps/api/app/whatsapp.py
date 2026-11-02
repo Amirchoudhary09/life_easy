@@ -38,6 +38,8 @@ async def disconnect_whatsapp(user=Depends(current_user),db:asyncpg.Pool=Depends
 
 @router.post("/link-code")
 async def create_link_code(user=Depends(current_user),db:asyncpg.Pool=Depends(get_db)):
+    recent=await db.fetchval("SELECT count(*) FROM channel_link_tokens WHERE user_id=$1 AND provider='whatsapp' AND created_at>now()-interval '1 hour'",user["id"])
+    if recent>=5: raise HTTPException(status_code=429,detail="Too many link codes generated. Try again later.")
     alphabet="ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
     code="".join(secrets.choice(alphabet) for _ in range(8))
     pepper=os.getenv("OTP_PEPPER","") or os.getenv("JWT_SECRET","")
@@ -49,7 +51,7 @@ def extract_messages(payload:dict[str,Any])->list[dict]:
     for entry in payload.get("entry",[]):
         for change in entry.get("changes",[]):
             value=change.get("value",{})
-            if change.get("field")=="messages":
+            if change.get("field")=="messages" and (value.get("metadata",{}).get("phone_number_id")==PHONE_NUMBER_ID):
                 for item in value.get("messages",[]) or []:
                     if item.get("type")=="text" and item.get("text",{}).get("body"):
                         result.append({"from":item.get("from",""),"id":item.get("id",""),"text":item["text"]["body"]})

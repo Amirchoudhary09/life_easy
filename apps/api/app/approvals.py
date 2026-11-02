@@ -11,7 +11,7 @@ from app.auth import current_user
 from app.db import get_db
 
 router = APIRouter(prefix="/api/v1/approvals", tags=["Approvals"])
-ACTIONS = {"email.send", "linkedin.message", "linkedin.post", "whatsapp.message", "application.submit", "social.post"}
+ACTIONS = {"email.send", "whatsapp.message"}
 
 
 class ApprovalBody(BaseModel):

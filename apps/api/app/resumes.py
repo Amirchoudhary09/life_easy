@@ -1,5 +1,5 @@
 from __future__ import annotations
-import io,json,os,re
+import io,json,os,re,zipfile
 from uuid import uuid4
 import asyncpg,boto3
 from botocore.exceptions import BotoCoreError,ClientError
@@ -23,7 +23,9 @@ def extract(filename,raw):
     elif filename.endswith(".docx"):
         doc=Document(io.BytesIO(raw)); text="\n".join(p.text for p in doc.paragraphs)
         for table in doc.tables: text+="\n"+"\n".join(" | ".join(c.text for c in row.cells) for row in table.rows)
-    else: raise HTTPException(status_code=415,detail="Upload a PDF or DOCX resume")
+        else: raise HTTPException(status_code=415,detail="Upload a PDF or DOCX resume")
+    except HTTPException: raise
+    except (ValueError,zipfile.BadZipFile,KeyError) as exc: raise HTTPException(status_code=422,detail="Resume file could not be parsed") from exc
     text=re.sub(r"[ \t]+"," ",text); text=re.sub(r"\n{3,}","\n\n",text).strip()
     if len(text)<80: raise HTTPException(status_code=422,detail="Could not extract enough text. Upload a text-based PDF or DOCX.")
     return text[:100000]
@@ -40,7 +42,7 @@ async def upload(file:UploadFile=File(...),user=Depends(current_user),db:asyncpg
     if filename.lower().endswith(".docx") and not raw.startswith(b"PK"): raise HTTPException(status_code=415,detail="Invalid DOCX file")
     text=extract(filename.lower(),raw); skills=detect_skills(text); client,bucket=storage(); key=f"users/{user['id']}/resumes/{uuid4()}/{filename}"
     content_type="application/pdf" if filename.lower().endswith(".pdf") else "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-    try: client.put_object(Bucket=bucket,Key=key,Body=raw,ContentType=content_type,ServerSideEncryption="AES256")
+    try: client.put_object(Bucket=bucket,Key=key,Body=raw,ContentType=content_type)
     except (BotoCoreError,ClientError): raise HTTPException(status_code=502,detail="Private resume storage upload failed")
     try:
         row=await db.fetchrow("INSERT INTO resume_documents(user_id,storage_key,filename,content_type,byte_size,extracted_text) VALUES($1,$2,$3,$4,$5,$6) RETURNING id,filename,content_type,byte_size,created_at",user["id"],key,filename,content_type,len(raw),text)
