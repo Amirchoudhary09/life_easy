@@ -47,7 +47,7 @@ async def current_user(request:Request,credentials:HTTPAuthorizationCredentials|
     if user["status"]!="active": raise HTTPException(status_code=403,detail="This account is suspended")
     allowed={x.strip().lower() for x in os.getenv("ADMIN_EMAILS","").split(",") if x.strip()}
     result=dict(user)
-    if result["email"].lower() in allowed: result["role"]="admin"
+    if result["email"].lower() in allowed and (result["email_verified"] or result["phone_verified"]): result["role"]="admin"
     return result
 @router.post("/register",status_code=201)
 async def register(body:RegisterBody,response:Response,db:asyncpg.Pool=Depends(get_db)):

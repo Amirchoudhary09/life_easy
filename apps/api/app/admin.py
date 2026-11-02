@@ -63,16 +63,28 @@ async def list_users(q:str|None=None,limit:int=Query(50,ge=1,le=100),offset:int=
 @router.patch("/users/{user_id}/status")
 async def set_user_status(user_id:UUID,body:UserStatusBody,actor=Depends(admin_user),db:asyncpg.Pool=Depends(get_db)):
     if str(actor["id"])==str(user_id) and body.status=="suspended": raise HTTPException(status_code=400,detail="You cannot suspend your own active admin session")
+    target=await db.fetchrow("SELECT role,email FROM app_users WHERE id=$1",user_id)
+    if target is None: raise HTTPException(status_code=404,detail="User not found")
+    allowlist={x.strip().lower() for x in os.getenv("ADMIN_EMAILS","").split(",") if x.strip()}
+    if body.status=="suspended" and (target["role"]=="admin" or target["email"].lower() in allowlist):
+        admins=await db.fetchval("SELECT count(*) FROM app_users WHERE status='active' AND (role='admin' OR lower(email)=ANY($1::text[]))",sorted(allowlist))
+        if admins<=1: raise HTTPException(status_code=409,detail="Cannot suspend the last active administrator")
     row=await db.fetchrow("UPDATE app_users SET status=$1,updated_at=now() WHERE id=$2 RETURNING id,email,status",body.status,user_id)
-    if row is None: raise HTTPException(status_code=404,detail="User not found")
     await db.execute("INSERT INTO audit_events(user_id,event_type,resource_id,details) VALUES($1,'admin.user_status_changed',$2,$3)",actor["id"],user_id,{"status":body.status})
     return {"user":dict(row)}
 
 @router.patch("/users/{user_id}/role")
 async def set_user_role(user_id:UUID,body:UserRoleBody,actor=Depends(admin_user),db:asyncpg.Pool=Depends(get_db)):
     if str(actor["id"])==str(user_id) and body.role!="admin": raise HTTPException(status_code=400,detail="You cannot remove your own admin role")
+    target=await db.fetchrow("SELECT role,email,email_verified,phone_verified FROM app_users WHERE id=$1",user_id)
+    if target is None: raise HTTPException(status_code=404,detail="User not found")
+    allowlist={x.strip().lower() for x in os.getenv("ADMIN_EMAILS","").split(",") if x.strip()}
+    if body.role in {"admin","developer"} and not (target["email_verified"] or target["phone_verified"]):
+        raise HTTPException(status_code=409,detail="Verify the user's email or phone before granting privileged access")
+    if body.role!="admin" and (target["role"]=="admin" or target["email"].lower() in allowlist):
+        admins=await db.fetchval("SELECT count(*) FROM app_users WHERE status='active' AND (role='admin' OR lower(email)=ANY($1::text[]))",sorted(allowlist))
+        if admins<=1: raise HTTPException(status_code=409,detail="Cannot remove the last active administrator")
     row=await db.fetchrow("UPDATE app_users SET role=$1,updated_at=now() WHERE id=$2 RETURNING id,email,role",body.role,user_id)
-    if row is None: raise HTTPException(status_code=404,detail="User not found")
     await db.execute("INSERT INTO audit_events(user_id,event_type,resource_id,details) VALUES($1,'admin.user_role_changed',$2,$3)",actor["id"],user_id,{"role":body.role})
     return {"user":dict(row)}
 

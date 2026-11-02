@@ -6,6 +6,7 @@ from fastapi import APIRouter,Depends,HTTPException,Query,Request
 from fastapi.responses import PlainTextResponse
 from app.auth import current_user
 from app.db import get_db
+from app.feature_flags import feature_enabled
 from app.assistant import generate_reply
 router=APIRouter(prefix="/api/v1/webhooks/whatsapp",tags=["WhatsApp"])
 VERIFY_TOKEN=os.getenv("WHATSAPP_WEBHOOK_VERIFY_TOKEN","")
@@ -90,6 +91,7 @@ async def receive_webhook(request:Request,db:asyncpg.Pool=Depends(get_db)):
             continue
         identity=await db.fetchrow("SELECT user_id FROM channel_identities WHERE provider='whatsapp' AND provider_user_id=$1 AND is_active=TRUE",sender)
         if identity is None: continue
+        if not await feature_enabled(db,"whatsapp_assistant",True): continue
         cid=await db.fetchval("SELECT id FROM conversations WHERE user_id=$1 AND channel='whatsapp' AND channel_conversation_id=$2",identity["user_id"],sender)
         if cid is None: cid=await db.fetchval("INSERT INTO conversations(user_id,channel,channel_conversation_id) VALUES($1,'whatsapp',$2) RETURNING id",identity["user_id"],sender)
         exists=await db.fetchval("SELECT 1 FROM conversation_messages WHERE provider_message_id=$1",item["id"])
