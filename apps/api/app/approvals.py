@@ -54,7 +54,7 @@ async def create_approval(body: ApprovalBody, user=Depends(current_user), db: as
         VALUES($1, $2, $3::jsonb, $4, 'pending')
         RETURNING id, action_type, payload, content_hash, status, created_at
         """,
-        user["id"], body.action_type, json.dumps(payload), content_hash,
+        user["id"], body.action_type, payload, content_hash,
     )
     return {"approval": dict(row), "requires_explicit_confirmation": True}
 
@@ -109,7 +109,7 @@ async def confirm_approval(
                 VALUES($1, $2, $3, $4::jsonb)
                 """,
                 user["id"], "approval." + status, approval_id,
-                json.dumps({"content_hash": row["content_hash"], "action_type": row["action_type"]}),
+                {"content_hash": row["content_hash"], "action_type": row["action_type"]},
             )
     # An approved record is still not sent until a separate execution worker exists.
     return {"approval_id": str(approval_id), "status": status, "execution": "not_sent_worker_pending"}
