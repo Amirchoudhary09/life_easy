@@ -46,3 +46,21 @@ Life Easy is a career-first personal AI assistant. Its primary job is to help ea
 
 ## Current status
 This brief defines the intended product direction. It does not mean the listed integrations or product capabilities are already implemented.
+
+
+## Mandatory final-send approval (global policy)
+
+**No outbound message to another person or external audience may be sent or published until the user reviews the exact final content and explicitly approves that specific send.** This applies to email, LinkedIn messages and posts, recruiter outreach, WhatsApp/SMS messages initiated on the user's behalf, and other connected communication channels.
+
+Approval flow:
+1. Prepare the message and resolve its destination/audience.
+2. Show the exact recipient or audience, channel, complete message body, and any attachments.
+3. Ask a clear confirmation question such as: "Send this exact message to [recipient] via [channel]?"
+4. Execute only after an unambiguous affirmative response tied to that preview.
+5. If the user edits the content, recipient, audience, or attachment, invalidate the previous approval and show the revised preview for approval again.
+6. Record the approval, content hash, destination, timestamp, execution result, and idempotency key in the audit log.
+7. Never infer approval from silence, prior approvals, a general instruction, or an earlier approval for a different message.
+
+This is a per-message approval rule, not a one-time account setting. Users may ask Life Easy to draft, revise, research, or queue messages automatically, but not to bypass the final-send approval.
+
+**Exception:** ordinary conversational replies that Life Easy sends back to the user in the user's own active chat are part of the assistant interaction and do not require a second approval. This exception does not apply to messages sent to other people, groups, public feeds, or external services on the user's behalf.
