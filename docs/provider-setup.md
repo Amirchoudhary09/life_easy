@@ -50,7 +50,7 @@ Set GREENHOUSE_BOARD_TOKENS and LEVER_SITE_NAMES to comma-separated public emplo
 2. Configure API and worker environment variables in Render.
 3. Deploy API, then run migrations once with the production database URL.
 4. Deploy the worker using python -m app.worker.
-5. Deploy Next.js to Vercel and set API_ORIGIN to the HTTPS Render API origin. Leave NEXT_PUBLIC_API_BASE_URL unset: Next.js proxies /api through a same-origin rewrite so HttpOnly cookies work without third-party-cookie dependence.
+5. Deploy Next.js to Vercel and set API_ORIGIN to the HTTPS Render API origin. Leave NEXT_PUBLIC_API_BASE_URL unset: Next.js proxies /api through a same-origin rewrite so HttpOnly cookies work without third-party-cookie dependence. For local development, the rewrite defaults to http://localhost:8000.
 6. Set FRONTEND_ORIGIN on Render to the exact Vercel/custom frontend origin. Configure HTTPS and restrict credentialed CORS to that origin.
 7. Test registration, cookie login/logout, CSRF, OTP, resume upload/download, job ingestion, Gmail OAuth, WhatsApp webhook and approval send with test accounts.
 

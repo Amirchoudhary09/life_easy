@@ -35,7 +35,7 @@ Life Easy is a multi-user, career-first AI assistant. It combines job discovery,
    
        cd apps/web
        cp .env.example .env.local
-       # Set NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
+       # Next.js rewrites /api to localhost:8000 by default.
        npm install
        npm run dev
 
@@ -50,7 +50,7 @@ See docs/provider-setup.md for email OTP, SMS OTP, Gmail OAuth, WhatsApp Busines
 - Greenhouse and Lever ingestion requires configured public company board tokens/site names. It does not scrape LinkedIn or private job boards.
 - ATS analysis is a transparent heuristic, not a proprietary vendor ATS score.
 - Gmail send and WhatsApp replies require provider setup and user authorization. LinkedIn outbound actions are not implemented; LinkedIn assistance is limited to drafting/research.
-- OAuth disconnect/revocation UI, password reset, stronger abuse/rate limiting, admin board management, observability, backup policy and external penetration testing remain before public production launch.
+- Provider-side OAuth revocation, password reset, stronger abuse/rate limiting, admin board management, observability, backup policy and external penetration testing remain before public production launch.
 - Configure HTTPS frontend/API origins for credentialed CORS. Prefer custom app/api domains under the same registrable domain for reliable browser cookie behavior.
 
 ## Development checks
