@@ -24,7 +24,7 @@ export default function LoginPage() {
       const response = await fetch(`${API}/api/v1/auth/${mode}`, {
         method: "POST",
         credentials: "include",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(typeof document !== "undefined" && document.cookie.includes("life_easy_csrf=") ? { "X-CSRF-Token": decodeURIComponent(document.cookie.split("; ").find(x => x.startsWith("life_easy_csrf="))?.split("=")[1] || "") } : {}) },
         body: JSON.stringify(mode === "register" ? { display_name: name, email, password } : { email, password }),
       });
       const data = await response.json();
