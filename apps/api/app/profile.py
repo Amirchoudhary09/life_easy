@@ -1,4 +1,3 @@
-import json
 import asyncpg
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
@@ -31,5 +30,5 @@ async def save_profile(body: ProfileBody, user=Depends(current_user), db: asyncp
       ON CONFLICT(user_id) DO UPDATE SET headline=EXCLUDED.headline,location=EXCLUDED.location,
       experience_years=EXCLUDED.experience_years,skills=EXCLUDED.skills,preferences=EXCLUDED.preferences,updated_at=now()
       RETURNING user_id,headline,location,experience_years,skills,preferences,updated_at
-    """, user["id"], body.headline, body.location, body.experience_years, json.dumps(body.skills), json.dumps(body.preferences))
+    """, user["id"], body.headline, body.location, body.experience_years, body.skills, body.preferences)
     return {"profile": dict(row)}
