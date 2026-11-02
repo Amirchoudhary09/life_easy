@@ -3,7 +3,7 @@ import json
 from uuid import UUID
 import asyncpg
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StringConstraints\nfrom typing import Annotated
 from app.auth import current_user
 from app.db import get_db
 
