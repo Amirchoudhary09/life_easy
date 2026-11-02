@@ -3,7 +3,7 @@ import {useEffect,useState} from "react";
 import type {FormEvent} from "react";
 import Link from "next/link";
 import {useRouter} from "next/navigation";
-const API=process.env.NEXT_PUBLIC_API_BASE_URL||"http://localhost:8000";
+const API=process.env.NEXT_PUBLIC_API_BASE_URL||"";
 const tabs=["Overview","Jobs","Applications","Resume & ATS","AI assistant","Connections","Approvals","Profile"];
 const statuses=["planned","applied","assessment","interview","offer","rejected","withdrawn"];
 export default function DashboardPage(){
