@@ -14,6 +14,10 @@ class ChatBody(BaseModel):
 async def generate_reply(db:asyncpg.Pool,user_id,conversation_id,message,provider_message_id=None):
     key=os.getenv("OPENAI_API_KEY","")
     if not key: raise RuntimeError("AI provider is not configured")
+    if provider_message_id:
+        await db.execute("INSERT INTO conversation_messages(conversation_id,user_id,direction,body,provider_message_id) VALUES($1,$2,'inbound',$3,$4)",conversation_id,user_id,message,provider_message_id)
+    else:
+        await db.execute("INSERT INTO conversation_messages(conversation_id,user_id,direction,body) VALUES($1,$2,'inbound',$3)",conversation_id,user_id,message)
     profile=await db.fetchrow("SELECT headline,location,experience_years,skills FROM profiles WHERE user_id=$1",user_id)
     resume=await db.fetchrow("SELECT extracted_text FROM resume_documents WHERE user_id=$1 ORDER BY created_at DESC LIMIT 1",user_id)
     memories=await db.fetch("SELECT memory_key,memory_value FROM user_memories WHERE user_id=$1 ORDER BY updated_at DESC LIMIT 30",user_id)
@@ -24,16 +28,11 @@ async def generate_reply(db:asyncpg.Pool,user_id,conversation_id,message,provide
       f"Profile: {dict(profile) if profile else {}}. Memories: {[dict(x) for x in memories]}. Resume: {resume['extracted_text'][:10000] if resume else 'No resume uploaded'}.")
     messages=[{"role":"system","content":system}]
     for item in reversed(history): messages.append({"role":"user" if item["direction"]=="inbound" else "assistant","content":item["body"]})
-    messages.append({"role":"user","content":message})
     async with httpx.AsyncClient(timeout=60) as client:
         response=await client.post(os.getenv("OPENAI_BASE_URL","https://api.openai.com/v1").rstrip("/")+"/chat/completions",headers={"Authorization":f"Bearer {key}"},json={"model":os.getenv("OPENAI_MODEL","gpt-4o-mini"),"messages":messages,"temperature":0.4})
     if response.is_error: raise RuntimeError(f"AI provider request failed with HTTP {response.status_code}")
     answer=response.json().get("choices",[{}])[0].get("message",{}).get("content")
     if not answer: raise RuntimeError("AI provider returned an empty response")
-    if provider_message_id:
-        await db.execute("INSERT INTO conversation_messages(conversation_id,user_id,direction,body,provider_message_id) VALUES($1,$2,'inbound',$3,$4)",conversation_id,user_id,message,provider_message_id)
-    else:
-        await db.execute("INSERT INTO conversation_messages(conversation_id,user_id,direction,body) VALUES($1,$2,'inbound',$3)",conversation_id,user_id,message)
     await db.execute("INSERT INTO conversation_messages(conversation_id,user_id,direction,body) VALUES($1,$2,'outbound',$3)",conversation_id,user_id,answer)
     await db.execute("UPDATE conversations SET updated_at=now() WHERE id=$1 AND user_id=$2",conversation_id,user_id)
     return answer
