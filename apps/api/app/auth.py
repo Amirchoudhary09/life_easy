@@ -14,6 +14,7 @@ class RegisterBody(BaseModel):
     email:EmailStr
     password:str=Field(min_length=12,max_length=128)
     display_name:str=Field(min_length=1,max_length=100)
+    phone_e164:str=Field(pattern=r"^\\+[1-9]\\d{7,14}$")
 class LoginBody(BaseModel):
     email:EmailStr
     password:str=Field(min_length=1,max_length=128)
@@ -41,14 +42,14 @@ async def current_user(request:Request,credentials:HTTPAuthorizationCredentials|
         payload=jwt.decode(token,jwt_secret(),algorithms=["HS256"],issuer="life-easy",options={"require":["sub","iat","exp","iss"]})
         user_id=UUID(payload["sub"])
     except (jwt.InvalidTokenError,ValueError,KeyError): raise HTTPException(status_code=401,detail="Invalid or expired session")
-    user=await db.fetchrow("SELECT id,email,display_name,email_verified,phone_verified FROM app_users WHERE id=$1",user_id)
+    user=await db.fetchrow("SELECT id,email,display_name,email_verified,phone_verified,phone_e164 FROM app_users WHERE id=$1",user_id)
     if user is None: raise HTTPException(status_code=401,detail="Account not found")
     return user
 @router.post("/register",status_code=201)
 async def register(body:RegisterBody,response:Response,db:asyncpg.Pool=Depends(get_db)):
     jwt_secret()
-    try: row=await db.fetchrow("INSERT INTO app_users(email,display_name,password_hash) VALUES($1,$2,$3) RETURNING id,email,display_name,email_verified",str(body.email).lower().strip(),body.display_name.strip(),hasher.hash(body.password))
-    except asyncpg.UniqueViolationError: raise HTTPException(status_code=409,detail="Email is already registered")
+    try: row=await db.fetchrow("INSERT INTO app_users(email,display_name,password_hash,phone_e164) VALUES($1,$2,$3,$4) RETURNING id,email,display_name,email_verified,phone_e164",str(body.email).lower().strip(),body.display_name.strip(),hasher.hash(body.password),body.phone_e164)
+    except asyncpg.UniqueViolationError: raise HTTPException(status_code=409,detail="Email or phone number is already registered")
     csrf=set_session(response,row["id"])
     return {"user":dict(row),"csrf_token":csrf,"token_type":"cookie","expires_in":43200,"email_verification":"required"}
 @router.post("/login")
@@ -57,7 +58,7 @@ async def login(body:LoginBody,response:Response,db:asyncpg.Pool=Depends(get_db)
     row=await db.fetchrow("SELECT id,email,display_name,email_verified,password_hash FROM app_users WHERE email=$1",str(body.email).lower().strip())
     if row is None or not row["password_hash"] or not hasher.verify(body.password,row["password_hash"]): raise HTTPException(status_code=401,detail="Invalid email or password")
     csrf=set_session(response,row["id"])
-    return {"user":{"id":str(row["id"]),"email":row["email"],"display_name":row["display_name"],"email_verified":row["email_verified"]},"csrf_token":csrf,"token_type":"cookie","expires_in":43200}
+    return {"user":{"id":str(row["id"]),"email":row["email"],"display_name":row["display_name"],"email_verified":row["email_verified"],"phone_e164":row["phone_e164"]},"csrf_token":csrf,"token_type":"cookie","expires_in":43200}
 @router.post("/phone/send")
 async def phone_login_send(body:PhoneLoginSend,db:asyncpg.Pool=Depends(get_db)):
     sid=os.getenv("TWILIO_ACCOUNT_SID",""); token=os.getenv("TWILIO_AUTH_TOKEN",""); service=os.getenv("TWILIO_VERIFY_SERVICE_SID","")
@@ -91,4 +92,4 @@ async def logout(response:Response):
     return {"status":"logged_out"}
 @router.get("/me")
 async def me(user=Depends(current_user)):
-    return {"user":{"id":str(user["id"]),"email":user["email"],"display_name":user["display_name"],"email_verified":user["email_verified"],"phone_verified":user["phone_verified"]}}
+    return {"user":{"id":str(user["id"]),"email":user["email"],"display_name":user["display_name"],"email_verified":user["email_verified"],"phone_verified":user["phone_verified"],"phone_e164":user["phone_e164"]}}

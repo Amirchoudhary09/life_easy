@@ -28,7 +28,7 @@ export default function LoginPage() {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json", ...(typeof document !== "undefined" && document.cookie.includes("life_easy_csrf=") ? { "X-CSRF-Token": decodeURIComponent(document.cookie.split("; ").find(x => x.startsWith("life_easy_csrf="))?.split("=")[1] || "") } : {}) },
-        body: JSON.stringify(mode === "register" ? { display_name: name, email, password } : { email, password }),
+        body: JSON.stringify(mode === "register" ? { display_name: name, email, password, phone_e164: phone } : { email, password }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.detail || "Unable to continue. Please try again.");
@@ -69,7 +69,7 @@ export default function LoginPage() {
         <button className={mode === "register" ? "selected" : ""} onClick={() => setMode("register")} type="button">Create account</button>
       </div>
       <form onSubmit={submit} className="auth-form">
-        {mode === "register" && <label>Full name<input required minLength={1} maxLength={100} value={name} onChange={e => setName(e.target.value)} placeholder="Your name"/></label>}
+        {mode === "register" && <><label>Full name<input required minLength={1} maxLength={100} value={name} onChange={e => setName(e.target.value)} placeholder="Your name"/></label><label>Mobile number<input required type="tel" pattern="\\+[1-9][0-9]{7,14}" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+919876543210"/></label></>}
         <label>Email address<input required type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com"/></label>
         <label>Password<input required type="password" minLength={mode === "register" ? 12 : 1} maxLength={128} value={password} onChange={e => setPassword(e.target.value)} placeholder={mode === "register" ? "At least 12 characters" : "Your password"}/></label>
         {error && <p className="form-error" role="alert">{error}</p>}
