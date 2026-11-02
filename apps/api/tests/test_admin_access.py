@@ -7,3 +7,16 @@ def test_admin_allowlist_is_case_insensitive_and_trimmed(monkeypatch):
 def test_admin_allowlist_is_empty_by_default(monkeypatch):
     monkeypatch.delenv("ADMIN_EMAILS",raising=False)
     assert not is_allowlisted_admin({"email":"owner@example.com"})
+
+import pytest
+from app.feature_flags import feature_enabled
+class FakeDB:
+    def __init__(self,value): self.value=value
+    async def fetchval(self,*args): return self.value
+@pytest.mark.asyncio
+async def test_feature_flag_uses_database_value():
+    assert await feature_enabled(FakeDB(False),"job_search") is False
+    assert await feature_enabled(FakeDB(True),"job_search") is True
+@pytest.mark.asyncio
+async def test_feature_flag_default_when_unset():
+    assert await feature_enabled(FakeDB(None),"job_search",True) is True

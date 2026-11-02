@@ -81,7 +81,9 @@ async def set_user_role(user_id:UUID,body:UserRoleBody,actor=Depends(admin_user)
     allowlist={x.strip().lower() for x in os.getenv("ADMIN_EMAILS","").split(",") if x.strip()}
     if body.role in {"admin","developer"} and not (target["email_verified"] or target["phone_verified"]):
         raise HTTPException(status_code=409,detail="Verify the user's email or phone before granting privileged access")
-    if body.role!="admin" and (target["role"]=="admin" or target["email"].lower() in allowlist):
+    if target["email"].lower() in allowlist and body.role!="admin":
+        raise HTTPException(status_code=409,detail="Remove this email from ADMIN_EMAILS before changing its administrator access")
+    if body.role!="admin" and target["role"]=="admin":
         admins=await db.fetchval("SELECT count(*) FROM app_users WHERE status='active' AND (role='admin' OR lower(email)=ANY($1::text[]))",sorted(allowlist))
         if admins<=1: raise HTTPException(status_code=409,detail="Cannot remove the last active administrator")
     row=await db.fetchrow("UPDATE app_users SET role=$1,updated_at=now() WHERE id=$2 RETURNING id,email,role",body.role,user_id)
@@ -148,8 +150,8 @@ async def developer_health(user=Depends(developer_user),db:asyncpg.Pool=Depends(
     env=["JWT_SECRET","OTP_PEPPER","RESEND_API_KEY","TWILIO_VERIFY_SERVICE_SID","RESUME_BUCKET","OPENAI_API_KEY","TOKEN_ENCRYPTION_KEY","GOOGLE_CLIENT_ID","GOOGLE_CLIENT_SECRET","WHATSAPP_ACCESS_TOKEN","WHATSAPP_APP_SECRET"]
     configured={key:bool(os.getenv(key)) for key in env}
     counts=await db.fetchrow("SELECT count(*) FILTER(WHERE status='pending') AS pending,count(*) FILTER(WHERE status='processing') AS processing,count(*) FILTER(WHERE status='uncertain') AS uncertain,count(*) FILTER(WHERE status='failed') AS failed FROM external_action_jobs")
-    heartbeat=await db.fetchrow("SELECT last_seen,metadata FROM worker_heartbeats WHERE service_name='background-worker'")
-    return {"api":"healthy","database":"connected","worker":{"last_seen":heartbeat["last_seen"],"metadata":heartbeat["metadata"]} if heartbeat else {"last_seen":None,"status":"not_seen"},"providers":configured,"delivery_queue":dict(counts),"secrets_exposed":False}
+    heartbeat=await db.fetchrow("SELECT last_seen,metadata,(last_seen<now()-interval '60 seconds') AS stale FROM worker_heartbeats WHERE service_name='background-worker'")
+    return {"api":"healthy","database":"connected","worker":{"last_seen":heartbeat["last_seen"],"metadata":heartbeat["metadata"],"stale":heartbeat["stale"]} if heartbeat else {"last_seen":None,"status":"not_seen","stale":True},"providers":configured,"delivery_queue":dict(counts),"secrets_exposed":False}
 
 @router.post("/jobs/ingest")
 async def trigger_ingestion(user=Depends(developer_user),db:asyncpg.Pool=Depends(get_db)):
