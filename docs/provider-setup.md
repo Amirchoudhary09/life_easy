@@ -17,7 +17,7 @@ Enter secrets directly in Render service/worker environment or Vercel project se
 1. Create a Twilio account and Verify service.
 2. Configure an approved sender/route for supported countries.
 3. Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN and TWILIO_VERIFY_SERVICE_SID.
-4. Use E.164 format such as +91... and request SMS OTP in Connections.
+4. Use E.164 format such as +91... to verify your phone in Connections. Once verified, users can sign in with phone number + OTP from the login page.
 
 ## Private resume storage
 Create a private S3-compatible bucket. Set RESUME_BUCKET, S3_REGION, S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY and optionally S3_ENDPOINT_URL. Restrict bucket access to the API service, enable encryption and backups. Objects use per-user prefixes; downloads use short-lived signed URLs.
@@ -50,8 +50,8 @@ Set GREENHOUSE_BOARD_TOKENS and LEVER_SITE_NAMES to comma-separated public emplo
 2. Configure API and worker environment variables in Render.
 3. Deploy API, then run migrations once with the production database URL.
 4. Deploy the worker using python -m app.worker.
-5. Deploy Next.js to Vercel with NEXT_PUBLIC_API_BASE_URL and matching FRONTEND_ORIGIN.
-6. Configure custom HTTPS domains. Prefer frontend and API hostnames under the same registrable domain for reliable cookie behavior. Restrict credentialed CORS to the frontend origin.
+5. Deploy Next.js to Vercel and set API_ORIGIN to the HTTPS Render API origin. Leave NEXT_PUBLIC_API_BASE_URL unset: Next.js proxies /api through a same-origin rewrite so HttpOnly cookies work without third-party-cookie dependence.
+6. Set FRONTEND_ORIGIN on Render to the exact Vercel/custom frontend origin. Configure HTTPS and restrict credentialed CORS to that origin.
 7. Test registration, cookie login/logout, CSRF, OTP, resume upload/download, job ingestion, Gmail OAuth, WhatsApp webhook and approval send with test accounts.
 
 Do not deploy with placeholder secrets. Verify each provider integration before enabling it for users.

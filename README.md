@@ -3,7 +3,7 @@
 Life Easy is a multi-user, career-first AI assistant. It combines job discovery, resume intelligence, application tracking, a career copilot, WhatsApp conversations and approved career communications.
 
 ## Product modules
-- Email/password registration and login. Browser sessions use HttpOnly cookies with CSRF protection.
+- Email/password registration and login plus phone OTP login for verified numbers. Browser sessions use HttpOnly cookies with CSRF protection.
 - Email OTP (Resend) and phone OTP (Twilio Verify) account verification.
 - User-isolated profiles, resumes, saved jobs, applications, conversations and memories.
 - Private PDF/DOCX resume storage on S3-compatible storage, text extraction, skill detection and transparent heuristic ATS-style analysis.
