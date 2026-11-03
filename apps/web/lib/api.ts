@@ -179,7 +179,7 @@ export const api = {
   async logout(): Promise<void> {
     const token = readRefresh();
     setTokens(null);
-    if (token) await fetch(`${API_BASE}/api/v1/auth/logout`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ refresh_token: token }) }).catch(() => undefined);
+    if (token && API_BASE) await fetch(`${API_BASE}/api/v1/auth/logout`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ refresh_token: token }) }).catch(() => undefined);
   },
   me: () => json<User>("/api/v1/auth/me"),
 
