@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from logging.config import fileConfig
+from typing import Any
 
 from alembic import context
 from sqlalchemy import pool
@@ -19,6 +20,27 @@ if config.config_file_name is not None:
 
 config.set_main_option("sqlalchemy.url", get_settings().database_url.replace("%", "%%"))
 target_metadata = Base.metadata
+
+# These pgvector HNSW indexes are deliberately created with PostgreSQL-specific
+# SQL in the initial migration. Alembic's reflection currently reports their
+# vector expression columns as NullType and otherwise proposes dropping them.
+_PGVECTOR_SQL_MANAGED_INDEXES = {
+    "ix_jobs_embedding_hnsw",
+    "ix_memory_items_embedding_hnsw",
+}
+
+
+def include_object(
+    obj: Any,
+    name: str | None,
+    type_: str,
+    reflected: bool,
+    compare_to: Any,
+) -> bool:
+    """Keep raw-SQL pgvector indexes out of autogenerate drift checks."""
+    if type_ == "index" and reflected and name in _PGVECTOR_SQL_MANAGED_INDEXES:
+        return False
+    return True
 
 
 def run_migrations_offline() -> None:
@@ -38,6 +60,7 @@ def do_run_migrations(connection: Connection) -> None:
         target_metadata=target_metadata,
         render_as_batch=connection.dialect.name == "sqlite",
         compare_type=True,
+        include_object=include_object,
     )
     with context.begin_transaction():
         context.run_migrations()
