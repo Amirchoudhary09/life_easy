@@ -26,7 +26,10 @@ import type {
   User,
 } from "./types";
 
-export const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000").replace(/\/$/, "");
+const configuredApiBase = (process.env.NEXT_PUBLIC_API_BASE_URL || "").trim().replace(/\/+$/, "");
+// Localhost is a development convenience only. In production, fail clearly instead
+// of silently sending users' requests to their own computer.
+export const API_BASE = configuredApiBase || (process.env.NODE_ENV === "development" ? "http://localhost:8000" : "");
 const REFRESH_KEY = "lifeeasy.refresh";
 
 let accessToken: string | null = null;
@@ -40,6 +43,16 @@ export class ApiError extends Error {
     message: string,
   ) {
     super(message);
+  }
+}
+
+function assertApiConfigured(): void {
+  if (!API_BASE) {
+    throw new ApiError(
+      503,
+      "api_not_configured",
+      "Life Easy is not connected to its API yet. Set NEXT_PUBLIC_API_BASE_URL in the deployment environment.",
+    );
   }
 }
 
@@ -95,6 +108,7 @@ async function parseError(resp: Response): Promise<ApiError> {
 }
 
 export async function refreshSession(): Promise<boolean> {
+  if (!API_BASE) return false;
   if (refreshInFlight) return refreshInFlight;
   const token = readRefresh();
   if (!token) return false;
@@ -123,6 +137,7 @@ export async function refreshSession(): Promise<boolean> {
 type Body = BodyInit | Record<string, unknown> | unknown[] | undefined;
 
 async function raw(path: string, init: { method?: string; body?: Body; retry?: boolean } = {}): Promise<Response> {
+  assertApiConfigured();
   const headers: Record<string, string> = {};
   let body: BodyInit | undefined;
   if (init.body instanceof FormData || typeof init.body === "string" || init.body instanceof Blob) {
