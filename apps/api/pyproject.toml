@@ -1,0 +1,38 @@
+[project]
+name = "life-easy-api"
+version = "0.3.0"
+description = "Life Easy API: career-first personal AI assistant"
+requires-python = ">=3.12"
+
+[tool.ruff]
+line-length = 130
+target-version = "py312"
+src = ["app", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "ASYNC", "S", "T20"]
+ignore = [
+    "E501",  # ruff format wraps code; long string literals are fine
+    "S101",  # assert is fine in tests
+    "S105",  # false positives on words like "token_type"
+    "S106",
+    "B008",  # FastAPI Depends() in defaults
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S", "ASYNC"]
+"alembic/*" = ["E501", "I"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = false
+ignore_missing_imports = true
+warn_unused_ignores = true
+check_untyped_defs = true
+exclude = ["alembic/"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+filterwarnings = ["ignore::DeprecationWarning"]

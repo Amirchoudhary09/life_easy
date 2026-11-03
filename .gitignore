@@ -10,3 +10,10 @@
 venv/
 .DS_Store
 *.py[cod]
+**/.ruff_cache/
+**/.mypy_cache/
+apps/api/storage/
+*.db
+*.db-wal
+*.db-shm
+*.tsbuildinfo

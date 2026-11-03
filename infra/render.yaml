@@ -1,28 +1,77 @@
+# Render Blueprint. Secrets are never stored here: every `sync: false` value is entered in the
+# Render dashboard. Free instances sleep and free Postgres expires - use paid plans for real users.
+#
+# Scheduled work (job ingest, digests, follow-ups, inbox watch, interview prep, weekly report,
+# approval expiry, contact retention) runs inside the worker via arq cron jobs (app/worker.py),
+# so no separate Render cron job is needed.
+
+databases:
+  - name: life-easy-db
+    plan: basic-256mb
+    databaseName: life_easy
+    user: life_easy
+    postgresMajorVersion: "16"
+    # pgvector and pgcrypto are enabled by the first Alembic migration (CREATE EXTENSION).
+
 services:
+  - type: keyvalue
+    name: life-easy-redis
+    plan: starter
+    ipAllowList: []          # only reachable from this Render account's private network
+    maxmemoryPolicy: noeviction
+
   - type: web
     name: life-easy-api
     runtime: docker
+    plan: starter
     dockerfilePath: ./apps/api/Dockerfile
     dockerContext: ./apps/api
     healthCheckPath: /health
-    envVars:
+    envVars: &api-env
       - key: ENVIRONMENT
         value: production
-      - key: FRONTEND_ORIGIN
-        sync: false
-      - key: APP_API_KEY
-        sync: false
       - key: DATABASE_URL
-        sync: false
+        fromDatabase: {name: life-easy-db, property: connectionString}   # the app switches it to the asyncpg driver itself
       - key: REDIS_URL
-        sync: false
-      - key: WHATSAPP_WEBHOOK_VERIFY_TOKEN
-        sync: false
-      - key: WHATSAPP_APP_SECRET
-        sync: false
-      - key: WHATSAPP_ACCESS_TOKEN
-        sync: false
-      - key: WHATSAPP_PHONE_NUMBER_ID
-        sync: false
-      - key: WHATSAPP_GRAPH_API_VERSION
-        sync: false
+        fromService: {type: keyvalue, name: life-easy-redis, property: connectionString}
+      - {key: FRONTEND_ORIGIN, sync: false}
+      - {key: PUBLIC_API_URL, sync: false}
+      - {key: JWT_SECRET, sync: false}
+      - {key: TOKEN_ENCRYPTION_KEY, sync: false}
+      - {key: EMBEDDING_DIM, value: "1024"}
+      - {key: LLM_PROVIDER, value: anthropic}
+      - {key: ANTHROPIC_API_KEY, sync: false}
+      - {key: ANTHROPIC_MODEL, sync: false}
+      - {key: EMBEDDING_PROVIDER, value: voyage}
+      - {key: VOYAGE_API_KEY, sync: false}
+      - {key: STORAGE_BUCKET, sync: false}
+      - {key: STORAGE_ENDPOINT_URL, sync: false}
+      - {key: STORAGE_REGION, sync: false}
+      - {key: STORAGE_ACCESS_KEY_ID, sync: false}
+      - {key: STORAGE_SECRET_ACCESS_KEY, sync: false}
+      - {key: WHATSAPP_WEBHOOK_VERIFY_TOKEN, sync: false}
+      - {key: WHATSAPP_APP_SECRET, sync: false}
+      - {key: WHATSAPP_ACCESS_TOKEN, sync: false}
+      - {key: WHATSAPP_PHONE_NUMBER_ID, sync: false}
+      - {key: WHATSAPP_GRAPH_API_VERSION, sync: false}
+      - {key: TELEGRAM_BOT_TOKEN, sync: false}
+      - {key: TELEGRAM_WEBHOOK_SECRET, sync: false}
+      - {key: GOOGLE_CLIENT_ID, sync: false}
+      - {key: GOOGLE_CLIENT_SECRET, sync: false}
+      - {key: MICROSOFT_CLIENT_ID, sync: false}
+      - {key: MICROSOFT_CLIENT_SECRET, sync: false}
+      - {key: LINKEDIN_CLIENT_ID, sync: false}
+      - {key: LINKEDIN_CLIENT_SECRET, sync: false}
+      - {key: ADZUNA_APP_ID, sync: false}
+      - {key: ADZUNA_APP_KEY, sync: false}
+      - {key: ADZUNA_COUNTRY, sync: false}
+      - {key: JOB_BOARDS, sync: false}
+
+  - type: worker
+    name: life-easy-worker
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./apps/api/Dockerfile
+    dockerContext: ./apps/api
+    dockerCommand: arq app.worker.WorkerSettings
+    envVars: *api-env

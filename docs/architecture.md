@@ -23,7 +23,7 @@ Job hunting is the primary workflow. Email, LinkedIn, documents, interview prepa
 - **Profile & Match Agent:** resume parsing, skill normalization, eligibility and match explanations.
 - **Recruiter Research Agent:** publicly available professional contact details with source citations; never infer or guess email addresses.
 - **Application Tracker:** saved jobs, application stages, interviews, follow-ups, and outcomes.
-- **Career Email Agent:** per-user Gmail OAuth; draft by default, send only after approval.
+- **Career Email Agent:** per-user Gmail or Microsoft OAuth, or IMAP/SMTP with an app password; draft by default, send only after approval.
 - **LinkedIn Career Agent:** prepare posts, connection notes, recruiter messages, and profile copy. Execute publishing/actions only through currently supported authorized APIs or user-mediated flows. No scraping, session-cookie extraction, or browser automation that bypasses platform restrictions.
 - **Career Coach:** interview practice, company research, resume and cover-letter tailoring.
 
@@ -61,6 +61,23 @@ Research, searching, matching, summarizing, and drafting can run automatically. 
 5. LinkedIn career content through supported authorized pathways.
 6. Interview preparation, analytics, security hardening, observability, and production deployment.
 
+
+## How it is built (current code)
+
+| Concern | Where |
+|---|---|
+| Request flow | `apps/api/app/main.py` mounts routers; `auth/deps.py` resolves the user from the bearer token for every route |
+| Channels | `channels/whatsapp.py`, `channels/telegram.py` (adapters) → webhook enqueues `process_inbound_message` → `channels/pipeline.py`: de-duplicate, find the linked user, run commands (approve/reject/save/skip/tailor/applied/help/STOP) or the agent, reply, show approval previews with buttons |
+| Agent | `agent/agent.py` loop (up to 6 tool rounds) over `agent/tools.py`; safe tools act immediately, `request_*` tools only create approvals; `agent/prompts.py` holds the rules; `agent/memory.py` stores facts with embeddings |
+| AI providers | `ai/llm.py` (`AnthropicLLM`, deterministic `FakeLLM`), `ai/embeddings.py` (Voyage or offline hashing; pgvector search on Postgres), `ai/usage.py` (daily caps, token counts) |
+| Job discovery | `jobs/sources/*` adapters → `jobs/ingest.py` upsert with content hashes and stale deactivation → `jobs/matching.py` (embedding shortlist, rule score, LLM explanation for the top 10) |
+| Approval queue | `approvals/service.py`: create (hash + idempotency key), approve (hash check), reject, edit (new row), `execute` (once, audited); executors registered by `email/service.py` and `linkedin/service.py` |
+| Background work | `tasks/runner.py` (`enqueue`: arq on Redis, inline without Redis), `tasks/registry.py` (all tasks), `worker.py` (arq worker + cron schedule) |
+| Automations | `automations/digest.py`, `followups.py`, `inbox_watch.py`, `interview_prep.py`, `weekly_report.py`; `automations/notify.py` delivers to WhatsApp/Telegram and always to the dashboard notifications feed |
+| Data | `db/models.py` (all tables), `db/types.py` (UUID / JSONB / vector / UTC datetime that also work on SQLite), Alembic in `apps/api/alembic` |
+| Dashboard | `apps/web`: `lib/api.ts` typed client (access token in memory, refresh token in localStorage), `components/ApprovalCard.tsx` (the gate in the UI), pages under `app/app/*` |
+
+Delivery phases 1–4 and most of 5–6 are implemented; see the README "What works now" table for the open items.
 
 ## Mandatory approval before every external message
 

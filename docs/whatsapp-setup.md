@@ -5,9 +5,12 @@ Life Easy uses one **Life Easy-owned WhatsApp Business Platform / Cloud API numb
 ## Current implementation status
 
 - `GET /api/v1/webhooks/whatsapp`: Meta webhook verification handshake.
-- `POST /api/v1/webhooks/whatsapp`: validates `X-Hub-Signature-256` against the raw request body and acknowledges valid events.
-- `send_text_message()`: server-side Cloud API text-send helper.
-- **Not implemented yet:** persistent sender-to-user binding, OTP/account linking, queue/worker, AI response orchestration, conversation storage, rate limits, message deduplication, opt-out handling, and production tests. The webhook currently acknowledges verified events; it does not yet reply to users.
+- `POST /api/v1/webhooks/whatsapp`: validates `X-Hub-Signature-256` against the raw body, parses text and button replies, and queues each message.
+- Account linking: the user generates a one-time code in Dashboard > Settings > WhatsApp & Telegram and sends `LINK <code>` from their own WhatsApp. The `wa_id` is then bound to that one Life Easy account.
+- Each message is processed once (provider message id de-duplication), under that user's account only, by the same agent as the dashboard. Conversations are stored per user.
+- Approval previews arrive with **Approve / Reject** reply buttons; typing `APPROVE <id>` / `REJECT <id>` also works.
+- `STOP` (or `unsubscribe`) unlinks the chat immediately.
+- Proactive messages (daily digest, follow-ups, interview prep, weekly report) are sent as normal session messages. **Open:** outside the 24-hour customer-service window Meta requires approved message templates; until templates are added, those notices may be rejected by Meta and are still visible in the dashboard.
 
 ## Required setup on your side
 
