@@ -1,6 +1,26 @@
 {
-  "name":"life-easy-web","version":"0.1.0","private":true,
-  "scripts":{"dev":"next dev","build":"next build","start":"next start","lint":"tsc --noEmit"},
-  "dependencies":{"next":"15.2.3","react":"19.0.0","react-dom":"19.0.0"},
-  "devDependencies":{"@types/node":"22.13.10","@types/react":"19.0.10","@types/react-dom":"19.0.4","typescript":"5.8.2"}
+  "name": "life-easy-web",
+  "version": "0.3.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "next typegen && tsc --noEmit",
+    "lint": "next typegen && tsc --noEmit"
+  },
+  "dependencies": {
+    "next": "15.5.28",
+    "react": "19.1.10",
+    "react-dom": "19.1.10"
+  },
+  "devDependencies": {
+    "@types/node": "22.13.10",
+    "@types/react": "19.1.17",
+    "@types/react-dom": "19.1.11",
+    "typescript": "5.8.2"
+  },
+  "overrides": {
+    "postcss": "8.5.30"
+  }
 }

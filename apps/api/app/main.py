@@ -1,82 +1,96 @@
+"""Life Easy API entry point."""
+
 from __future__ import annotations
+
 from contextlib import asynccontextmanager
-from typing import Any
-from fastapi import FastAPI, Header, HTTPException
+
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from fastapi.responses import JSONResponse
 
-from app.whatsapp import router as whatsapp_router
+from app.config import get_settings
+from app.core.errors import AppError
+from app.core.logging import configure_logging, get_logger
+from app.core.request_id import RequestIDMiddleware
+from app.db.session import create_all_for_dev, dispose_engine
+from app.tasks.runner import close_pool
 
-class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
-    app_name: str = "Life Easy API"
-    environment: str = "development"
-    frontend_origin: str = "http://localhost:3000"
-    app_api_key: str = ""
-    database_url: str = ""
-    redis_url: str = ""
+log = get_logger(__name__)
 
-settings = Settings()
 
 @asynccontextmanager
-async def lifespan(_: FastAPI):
-    yield
+async def lifespan(_: FastAPI):  # type: ignore[no-untyped-def]
+    settings = get_settings()
+    configure_logging(settings.log_level, json_output=settings.is_production)
+    problems = settings.production_problems()
+    if problems:
+        raise RuntimeError("Refusing to start in production: " + "; ".join(problems))
+    if settings.is_sqlite and settings.environment != "test":
+        await create_all_for_dev()  # Postgres uses Alembic migrations instead
+    log.info("api started", environment=settings.environment, llm=settings.llm_provider)
+    try:
+        yield
+    finally:
+        await close_pool()
+        await dispose_engine()
 
-app = FastAPI(title=settings.app_name, version="0.2.0", lifespan=lifespan)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[settings.frontend_origin],
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
-)
-app.include_router(whatsapp_router)
 
-class JobSearchRequest(BaseModel):
-    query: str = Field(min_length=2, max_length=300)
-    locations: list[str] = Field(default_factory=lambda: ["India"])
-    experience: str = "0-2 years"
-    employment_types: list[str] = Field(default_factory=lambda: ["full-time", "internship"])
-    limit: int = Field(default=20, ge=1, le=50)
+def create_app() -> FastAPI:
+    settings = get_settings()
+    app = FastAPI(
+        title=settings.app_name,
+        version="0.3.0",
+        lifespan=lifespan,
+        docs_url=None if settings.is_production else "/docs",
+        redoc_url=None,
+    )
 
-class ApprovalRequest(BaseModel):
-    action: str = Field(min_length=3, max_length=80)
-    payload: dict[str, Any]
+    app.add_middleware(RequestIDMiddleware)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=[settings.frontend_origin],
+        allow_credentials=True,
+        allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
+        allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
+        expose_headers=["X-Request-ID"],
+    )
 
-def require_api_key(authorization: str | None) -> None:
-    if not settings.app_api_key:
-        if settings.environment == "production":
-            raise HTTPException(status_code=503, detail="API authentication is not configured")
-        return
-    if authorization != f"Bearer {settings.app_api_key}":
-        raise HTTPException(status_code=401, detail="Invalid API key")
+    @app.exception_handler(AppError)
+    async def _app_error(_: Request, exc: AppError) -> JSONResponse:
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"error": {"code": exc.code, "message": exc.message, **exc.extra}},
+        )
 
-@app.get("/health")
-async def health() -> dict[str, str]:
-    return {"status": "ok", "service": "life-easy-api"}
+    @app.get("/health", tags=["ops"])
+    async def health() -> dict[str, str]:
+        return {"status": "ok", "service": "life-easy-api"}
 
-@app.get("/api/v1/me")
-async def me(authorization: str | None = Header(default=None)) -> dict[str, str]:
-    require_api_key(authorization)
-    return {"name": "Life Easy user", "profile_status": "not_configured"}
+    from app.applications.router import router as applications_router
+    from app.approvals.router import router as approvals_router
+    from app.auth.router import router as auth_router
+    from app.channels.router import router as channels_router
+    from app.chat.router import router as chat_router
+    from app.email.router import router as email_router
+    from app.jobs.router import router as jobs_router
+    from app.linkedin.router import router as linkedin_router
+    from app.me.router import router as me_router
+    from app.resumes.router import router as resumes_router
 
-@app.post("/api/v1/jobs/search")
-async def search_jobs(request: JobSearchRequest, authorization: str | None = Header(default=None)) -> dict[str, Any]:
-    require_api_key(authorization)
-    return {
-        "status": "source_adapters_not_configured",
-        "request": request.model_dump(),
-        "jobs": [],
-        "message": "Configure permitted job-source adapters to enable discovery.",
-    }
+    for r in (
+        auth_router,
+        me_router,
+        resumes_router,
+        jobs_router,
+        applications_router,
+        approvals_router,
+        email_router,
+        linkedin_router,
+        channels_router,
+        chat_router,
+    ):
+        app.include_router(r)
+    return app
 
-@app.post("/api/v1/approvals")
-async def create_approval(request: ApprovalRequest, authorization: str | None = Header(default=None)) -> dict[str, Any]:
-    require_api_key(authorization)
-    return {
-        "status": "pending_implementation",
-        "action": request.action,
-        "requires_confirmation": True,
-        "message": "Approval persistence and execution worker are not configured yet.",
-    }
+
+app = create_app()

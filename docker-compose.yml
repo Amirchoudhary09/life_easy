@@ -1,0 +1,62 @@
+# Local full stack: Postgres + pgvector, Redis, API, worker, web.
+#   cp apps/api/.env.example apps/api/.env   (then fill in what you need)
+#   docker compose up --build
+# Web: http://localhost:3000   API docs: http://localhost:8000/docs
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: life_easy
+      POSTGRES_PASSWORD: life_easy_local
+      POSTGRES_DB: life_easy
+    ports: ["5432:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U life_easy"]
+      interval: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 10
+
+  api:
+    build: ./apps/api
+    env_file: ./apps/api/.env
+    environment: &api-env
+      DATABASE_URL: postgresql+asyncpg://life_easy:life_easy_local@db:5432/life_easy
+      REDIS_URL: redis://redis:6379/0
+      FRONTEND_ORIGIN: http://localhost:3000
+      PUBLIC_API_URL: http://localhost:8000
+      STORAGE_LOCAL_DIR: /app/storage
+    ports: ["8000:8000"]
+    volumes: [storage:/app/storage]
+    depends_on:
+      db: {condition: service_healthy}
+      redis: {condition: service_healthy}
+
+  worker:
+    build: ./apps/api
+    command: ["arq", "app.worker.WorkerSettings"]
+    env_file: ./apps/api/.env
+    environment: *api-env
+    volumes: [storage:/app/storage]
+    healthcheck: {disable: true}
+    depends_on:
+      api: {condition: service_started}  # the api container runs the migrations
+
+  web:
+    build:
+      context: ./apps/web
+      args:
+        NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
+    ports: ["3000:3000"]
+    depends_on: [api]
+
+volumes:
+  pgdata:
+  storage:
